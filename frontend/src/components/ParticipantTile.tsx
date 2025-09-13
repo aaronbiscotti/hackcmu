@@ -1,7 +1,13 @@
 // src/components/ParticipantTile.tsx
 "use client";
-import { Participant, Track } from 'livekit-client';
+import {
+  Participant,
+  Track,
+  TrackPublication,
+  ParticipantEvent,
+} from 'livekit-client';
 import React, { useEffect, useRef, useState } from 'react';
+import { VideoCameraSlashIcon } from '@heroicons/react/24/outline';
 
 interface ParticipantTileProps {
   participant: Participant;
@@ -10,121 +16,141 @@ interface ParticipantTileProps {
 export default function ParticipantTile({ participant }: ParticipantTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const [hasVideo, setHasVideo] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
+
+  const [videoPublication, setVideoPublication] = useState<TrackPublication | undefined>();
+  const [audioPublication, setAudioPublication] = useState<TrackPublication | undefined>();
+  const [isSpeaking, setIsSpeaking] = useState(participant.isSpeaking);
+  const [isCameraMuted, setIsCameraMuted] = useState(false);
+
+  const cleanName = (name: string) => {
+    return name.replace(/_vpbx$/, '');
+  };
 
   const getInitials = (fullName: string) => {
-    return fullName
+    const cleanedName = cleanName(fullName);
+    return cleanedName
       .split(' ')
-      .map(word => word.charAt(0))
+      .map((word) => word.charAt(0))
       .join('')
       .toUpperCase()
       .slice(0, 2);
   };
 
   useEffect(() => {
-    const updateTracks = () => {
-      // Handle video track
-      const videoPublication = participant.getTrackPublication(Track.Source.Camera);
-      const videoTrack = videoPublication?.videoTrack;
-      
-      // Fix: Show video element if track exists and is subscribed, regardless of mute state
-      const isVideoAvailable = !!videoTrack && videoPublication?.isSubscribed;
-      setHasVideo(isVideoAvailable);
+    const updateVideoPublication = () => {
+      const pub = participant.getTrackPublication(Track.Source.Camera);
+      setVideoPublication(pub);
+      setIsCameraMuted(pub?.isMuted ?? false);
+    };
 
-      if (isVideoAvailable && videoRef.current) {
-        videoTrack.attach(videoRef.current);
-      }
+    const updateAudioPublication = () => {
+      setAudioPublication(participant.getTrackPublication(Track.Source.Microphone));
+    };
 
-      // Handle audio track
-      const audioPublication = participant.getTrackPublication(Track.Source.Microphone);
-      const audioTrack = audioPublication?.audioTrack;
-      if (audioTrack && audioRef.current && audioPublication?.isSubscribed) {
-        audioTrack.attach(audioRef.current);
+    const onTrackMuted = (publication: TrackPublication) => {
+      if (publication.kind === Track.Kind.Video) {
+        setIsCameraMuted(true);
       }
     };
 
-    // Initial track setup
-    updateTracks();
-
-    // Listen for track events
-    const handleTrackSubscribed = () => {
-      updateTracks();
+    const onTrackUnmuted = (publication: TrackPublication) => {
+      if (publication.kind === Track.Kind.Video) {
+        setIsCameraMuted(false);
+      }
     };
-
-    const handleTrackUnsubscribed = () => {
-      updateTracks();
-    };
-
-    const handleTrackMuted = () => {
-      updateTracks();
-    };
-
-    const handleTrackUnmuted = () => {
-      updateTracks();
-    };
-
-    const handleIsSpeakingChanged = () => {
+    
+    const onIsSpeakingChanged = () => {
       setIsSpeaking(participant.isSpeaking);
     };
 
-    // Set initial speaking state
-    setIsSpeaking(participant.isSpeaking);
+    // Set initial state
+    updateVideoPublication();
+    updateAudioPublication();
 
-    participant.on('trackSubscribed', handleTrackSubscribed);
-    participant.on('trackUnsubscribed', handleTrackUnsubscribed);
-    participant.on('trackMuted', handleTrackMuted);
-    participant.on('trackUnmuted', handleTrackUnmuted);
-    participant.on('isSpeakingChanged', handleIsSpeakingChanged);
+    // Add listeners for all relevant events
+    participant.on(ParticipantEvent.TrackPublished, updateVideoPublication);
+    participant.on(ParticipantEvent.TrackUnpublished, updateVideoPublication);
+    participant.on(ParticipantEvent.TrackSubscribed, updateVideoPublication);
+    participant.on(ParticipantEvent.TrackUnsubscribed, updateVideoPublication);
+    participant.on(ParticipantEvent.TrackMuted, onTrackMuted);
+    participant.on(ParticipantEvent.TrackUnmuted, onTrackUnmuted);
+    participant.on(ParticipantEvent.IsSpeakingChanged, onIsSpeakingChanged);
 
-    // Cleanup function
+    // Cleanup
     return () => {
-      const videoPublication = participant.getTrackPublication(Track.Source.Camera);
-      const audioPublication = participant.getTrackPublication(Track.Source.Microphone);
-      
-      if (videoPublication?.videoTrack && videoRef.current) {
-        videoPublication.videoTrack.detach(videoRef.current);
-      }
-      if (audioPublication?.audioTrack && audioRef.current) {
-        audioPublication.audioTrack.detach(audioRef.current);
-      }
-      
-      participant.off('trackSubscribed', handleTrackSubscribed);
-      participant.off('trackUnsubscribed', handleTrackUnsubscribed);
-      participant.off('trackMuted', handleTrackMuted);
-      participant.off('trackUnmuted', handleTrackUnmuted);
-      participant.off('isSpeakingChanged', handleIsSpeakingChanged);
+      participant.off(ParticipantEvent.TrackPublished, updateVideoPublication);
+      participant.off(ParticipantEvent.TrackUnpublished, updateVideoPublication);
+      participant.off(ParticipantEvent.TrackSubscribed, updateVideoPublication);
+      participant.off(ParticipantEvent.TrackUnsubscribed, updateVideoPublication);
+      participant.off(ParticipantEvent.TrackMuted, onTrackMuted);
+      participant.off(ParticipantEvent.TrackUnmuted, onTrackUnmuted);
+      participant.off(ParticipantEvent.IsSpeakingChanged, onIsSpeakingChanged);
     };
   }, [participant]);
 
+  // Effect to attach video track
+  useEffect(() => {
+    const track = videoPublication?.track;
+    if (track && videoRef.current) {
+      track.attach(videoRef.current);
+      return () => {
+        track.detach();
+      };
+    }
+  }, [videoPublication]);
+
+  // Effect to attach audio track
+  useEffect(() => {
+    const track = audioPublication?.track;
+    if (track && audioRef.current) {
+      track.attach(audioRef.current);
+      return () => {
+        track.detach();
+      };
+    }
+  }, [audioPublication]);
+
+  // Decide whether to show video or the placeholder
+  const shouldShowVideo = videoPublication && videoPublication.isSubscribed && !isCameraMuted;
+
   return (
-    <div className={`relative h-full w-full bg-feather-green ${isSpeaking ? 'ring-4 ring-blue-500 ring-opacity-75' : ''}`}>
-      {hasVideo ? (
+    <div
+      className={`relative h-full w-full bg-feather-green overflow-hidden rounded-xl ${
+        isSpeaking ? 'ring-4 ring-blue-500 ring-opacity-75' : ''
+      }`}
+      data-lk-local-participant={participant.isLocal}
+    >
+      {shouldShowVideo ? (
         <video
           ref={videoRef}
           className="h-full w-full object-cover"
+          style={participant.isLocal ? { transform: 'scaleX(-1)' } : {}}
           autoPlay
           playsInline
-          muted={participant.isLocal}
         />
       ) : (
         <div className="h-full w-full flex items-center justify-center">
-          <div className="bg-snow rounded-full flex items-center justify-center text-eel font-bold w-32 h-32 text-4xl">
-            {getInitials(participant.identity)}
+          <div className="bg-snow rounded-full flex items-center justify-center text-eel font-bold w-32 h-32 text-4xl relative">
+            {isCameraMuted && (
+               <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
+                 <VideoCameraSlashIcon className="h-16 w-16 text-white" />
+               </div>
+            )}
+            {!isCameraMuted && getInitials(participant.identity)}
           </div>
         </div>
       )}
-      
+
       <audio
         ref={audioRef}
         autoPlay
         playsInline
         muted={participant.isLocal}
       />
-      
-      <div className="absolute bottom-3 left-3">
-        <h3 className="text-snow font-medium text-sm drop-shadow-lg">
-          {participant.identity}
+
+      <div className="absolute bottom-3 left-3 bg-black/40 px-2 py-1 rounded-md">
+        <h3 className="text-snow font-medium text-sm">
+          {cleanName(participant.identity)}
         </h3>
       </div>
     </div>

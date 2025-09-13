@@ -1,218 +1,191 @@
-// src/components/CallScreen.tsx
-"use client";
-import React, { useState, useEffect } from 'react';
-import { Room, RoomEvent, LocalParticipant, RemoteParticipant, Track, RoomOptions, DisconnectReason } from 'livekit-client';
-import { MicrophoneIcon, VideoCameraIcon, PhoneIcon, VideoCameraSlashIcon, SpeakerXMarkIcon } from '@heroicons/react/24/outline';
-import ExitConfirmationModal from './ExitConfirmationModal';
+'use client';
+
+import React from 'react';
+import { KeyboardShortcuts } from '@/lib/KeyboardShortcuts';
+import { ConnectionDetails } from '@/lib/types';
+import {
+  LocalUserChoices,
+  RoomContext,
+  useParticipants,
+  useLocalParticipant,
+  useTrackToggle,
+} from '@livekit/components-react';
 import ParticipantTile from './ParticipantTile';
-import ErrorToast from './ErrorToast';
+import ExitConfirmationModal from './ExitConfirmationModal';
+import CustomPreJoin from './CustomPreJoin';
+import {
+  RoomOptions,
+  VideoCodec,
+  VideoPresets,
+  Room,
+  RoomConnectOptions,
+  RoomEvent,
+  TrackPublishDefaults,
+  VideoCaptureOptions,
+  Track,
+} from 'livekit-client';
+import { MicrophoneIcon, VideoCameraIcon, PhoneIcon, VideoCameraSlashIcon, SpeakerXMarkIcon } from '@heroicons/react/24/outline';
+import { useLowCPUOptimizer } from '@/lib/usePerfomanceOptimiser';
+
+const CONN_DETAILS_ENDPOINT = '/api/connection-details';
 
 export default function CallScreen({ onEndCall, meetingCode, userName }: { onEndCall: () => void; meetingCode: string; userName: string }) {
-  const [room, setRoom] = useState<Room | undefined>();
-  const [participants, setParticipants] = useState<(LocalParticipant | RemoteParticipant)[]>([]);
-  const [isMicMuted, setMicMuted] = useState(false);
-  const [isCameraOff, setCameraOff] = useState(false);
-  const [showExitModal, setShowExitModal] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  // Effect to connect to the LiveKit room
-  useEffect(() => {
-    let currentRoom: Room | null = null;
-    let isConnecting = false;
-    let isMounted = true;
-
-    const connectToRoom = async () => {
-      if (isConnecting || !isMounted) return;
-      isConnecting = true;
-
-      try {
-        // Ensure we're in a browser environment
-        if (typeof window === 'undefined') {
-          throw new Error('Room can only be created in browser environment');
-        }
-
-        // Import Room dynamically to ensure it's loaded properly
-        const { Room: LiveKitRoom } = await import('livekit-client');
-        
-        // Create a new Room instance with explicit options
-        const roomOptions: RoomOptions = {
-          adaptiveStream: true,
-          dynacast: true,
-        };
-        currentRoom = new LiveKitRoom(roomOptions);
-        
-        // Verify Room instance was created successfully
-        if (!currentRoom) {
-          throw new Error('Failed to create Room instance');
-        }
-
-        // Fetch the token from our API route
-        const response = await fetch(`/api/get-livekit-token?room=${meetingCode}&username=${userName}`);
-        
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-          throw new Error(`Token request failed: ${response.status} - ${errorData.error}`);
-        }
-        
-        const { token } = await response.json();
-        if (!token) {
-          throw new Error('No token received from server');
-        }
-
-        // Connect to the room with the token and server URL
-        const serverUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;
-        if (!serverUrl) {
-          throw new Error('NEXT_PUBLIC_LIVEKIT_URL is not configured');
-        }
-        
-        if (!isMounted) return; // Component was unmounted
-        
-        await currentRoom.connect(serverUrl, token);
-
-        if (!isMounted) return; // Component was unmounted
-
-        // Publish user's camera and microphone after successful connection
-        await currentRoom.localParticipant.setCameraEnabled(true);
-        await currentRoom.localParticipant.setMicrophoneEnabled(true);
-
-        if (isMounted) {
-          setRoom(currentRoom);
-        }
-      } catch (error) {
-        console.error('Failed to connect to LiveKit room:', error);
-        
-        const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
-        
-        // Show user-friendly error message
-        if (isMounted) {
-          setErrorMessage(`Failed to join the call: ${errorMsg}`);
-        }
-        
-        console.error('Error details:', {
-          message: errorMsg,
-          stack: error instanceof Error ? error.stack : 'No stack trace',
-          currentRoom: !!currentRoom,
-          hasConnect: currentRoom && typeof currentRoom.connect === 'function'
-        });
-        
-        // Clean up on error
-        if (currentRoom) {
-          try {
-            currentRoom.disconnect();
-          } catch (disconnectError) {
-            console.error('Error during cleanup disconnect:', disconnectError);
-          }
-          currentRoom = null;
-        }
-      } finally {
-        isConnecting = false;
-      }
+  const [preJoinChoices, setPreJoinChoices] = React.useState<LocalUserChoices | undefined>(
+    undefined,
+  );
+  const preJoinDefaults = React.useMemo(() => {
+    return {
+      username: userName || '',
+      videoEnabled: true,
+      audioEnabled: true,
     };
+  }, [userName]);
+  const [connectionDetails, setConnectionDetails] = React.useState<ConnectionDetails | undefined>(
+    undefined,
+  );
 
-    connectToRoom();
+  const handlePreJoinSubmit = React.useCallback(async (values: LocalUserChoices) => {
+    setPreJoinChoices(values);
+    const url = new URL(CONN_DETAILS_ENDPOINT, window.location.origin);
+    url.searchParams.append('roomName', meetingCode);
+    url.searchParams.append('participantName', values.username);
+    const connectionDetailsResp = await fetch(url.toString());
+    const connectionDetailsData = await connectionDetailsResp.json();
+    setConnectionDetails(connectionDetailsData);
+  }, [meetingCode]);
+  const handlePreJoinError = React.useCallback((e: Error) => console.error(e), []);
 
-    // Cleanup: disconnect from the room when the component unmounts
-    return () => {
-      isMounted = false;
-      if (currentRoom) {
-        try {
-          currentRoom.disconnect();
-        } catch (error) {
-          console.error('Error during component unmount disconnect:', error);
-        }
-        currentRoom = null;
-      }
+
+  return (
+    <div className="bg-snow h-screen flex flex-col overflow-hidden">
+      {connectionDetails === undefined || preJoinChoices === undefined ? (
+        <div className="bg-snow h-full flex items-center justify-center p-6">
+          <CustomPreJoin
+            defaults={preJoinDefaults}
+            onSubmit={handlePreJoinSubmit}
+            onError={handlePreJoinError}
+          />
+        </div>
+      ) : (
+        <VideoConferenceComponent
+          connectionDetails={connectionDetails}
+          userChoices={preJoinChoices}
+          onEndCall={onEndCall}
+        />
+      )}
+    </div>
+  );
+}
+
+function VideoConferenceComponent(props: {
+  userChoices: LocalUserChoices;
+  connectionDetails: ConnectionDetails;
+  onEndCall: () => void;
+}) {
+  const roomOptions = React.useMemo((): RoomOptions => {
+    const videoCaptureDefaults: VideoCaptureOptions = {
+      deviceId: props.userChoices.videoDeviceId ?? undefined,
+      resolution: VideoPresets.h720,
     };
-  }, [meetingCode, userName]);
-
-  // Effect to handle room events and update participants
-  useEffect(() => {
-    if (!room) return;
-
-    const updateParticipants = () => {
-      const allParticipants = [room.localParticipant, ...Array.from(room.remoteParticipants.values())];
-      setParticipants(allParticipants);
+    const publishDefaults: TrackPublishDefaults = {
+      dtx: false,
+      videoSimulcastLayers: [VideoPresets.h540, VideoPresets.h216],
+      red: true,
+      videoCodec: 'vp8' as VideoCodec,
     };
-
-    const handleTrackMuted = (publication: any, participant: any) => {
-      if (participant === room.localParticipant) {
-        if (publication.source === Track.Source.Microphone) {
-          setMicMuted(publication.isMuted);
-        } else if (publication.source === Track.Source.Camera) {
-          setCameraOff(publication.isMuted);
-        }
-      }
+    return {
+      videoCaptureDefaults: videoCaptureDefaults,
+      publishDefaults: publishDefaults,
+      audioCaptureDefaults: {
+        deviceId: props.userChoices.audioDeviceId ?? undefined,
+      },
+      adaptiveStream: true,
+      dynacast: true,
     };
+  }, [props.userChoices]);
 
-    const handleTrackUnmuted = (publication: any, participant: any) => {
-      if (participant === room.localParticipant) {
-        if (publication.source === Track.Source.Microphone) {
-          setMicMuted(publication.isMuted);
-        } else if (publication.source === Track.Source.Camera) {
-          setCameraOff(publication.isMuted);
-        }
-      }
+  const room = React.useMemo(() => new Room(roomOptions), [roomOptions]);
+
+  const connectOptions = React.useMemo((): RoomConnectOptions => {
+    return {
+      autoSubscribe: true,
     };
+  }, []);
 
-    // Initial update
-    updateParticipants();
+  const handleOnLeave = React.useCallback(() => {
+    props.onEndCall();
+  }, [props]);
+  const handleError = React.useCallback((error: Error) => {
+    console.error(error);
+    alert(`Encountered an unexpected error, check the console logs for details: ${error.message}`);
+  }, []);
 
-    const handleDisconnected = (reason?: DisconnectReason) => {
-      const reasonText = reason ? `Reason: ${reason}` : 'Unknown reason';
-      setErrorMessage(`Connection lost: ${reasonText}`);
-    };
+  React.useEffect(() => {
+    room.on(RoomEvent.Disconnected, handleOnLeave);
+    room.on(RoomEvent.MediaDevicesError, handleError);
 
-    const handleReconnecting = () => {
-      setErrorMessage('Reconnecting to the call...');
-    };
-
-    const handleReconnected = () => {
-      setErrorMessage(null);
-    };
-
-    // Set up listeners for room events
-    room.on(RoomEvent.ParticipantConnected, updateParticipants);
-    room.on(RoomEvent.ParticipantDisconnected, updateParticipants);
-    room.on(RoomEvent.TrackSubscribed, updateParticipants);
-    room.on(RoomEvent.TrackUnsubscribed, updateParticipants);
-    room.on(RoomEvent.TrackMuted, handleTrackMuted);
-    room.on(RoomEvent.TrackUnmuted, handleTrackUnmuted);
-    room.on(RoomEvent.Disconnected, handleDisconnected);
-    room.on(RoomEvent.Reconnecting, handleReconnecting);
-    room.on(RoomEvent.Reconnected, handleReconnected);
-
-    // Cleanup listeners
-    return () => {
-      room.off(RoomEvent.ParticipantConnected, updateParticipants);
-      room.off(RoomEvent.ParticipantDisconnected, updateParticipants);
-      room.off(RoomEvent.TrackSubscribed, updateParticipants);
-      room.off(RoomEvent.TrackUnsubscribed, updateParticipants);
-      room.off(RoomEvent.TrackMuted, handleTrackMuted);
-      room.off(RoomEvent.TrackUnmuted, handleTrackUnmuted);
-      room.off(RoomEvent.Disconnected, handleDisconnected);
-      room.off(RoomEvent.Reconnecting, handleReconnecting);
-      room.off(RoomEvent.Reconnected, handleReconnected);
-    };
-  }, [room]);
-
-  const handleToggleMic = async () => {
-    if (room) {
-      const newEnabledState = isMicMuted; // If currently muted, enable it
-      await room.localParticipant.setMicrophoneEnabled(newEnabledState);
-      // State will be updated by the room event listeners
+    room
+      .connect(
+        props.connectionDetails.serverUrl,
+        props.connectionDetails.participantToken,
+        connectOptions,
+      )
+      .catch((error) => {
+        handleError(error);
+      });
+    if (props.userChoices.videoEnabled) {
+      room.localParticipant.setCameraEnabled(true).catch((error) => {
+        handleError(error);
+      });
     }
+    if (props.userChoices.audioEnabled) {
+      room.localParticipant.setMicrophoneEnabled(true).catch((error) => {
+        handleError(error);
+      });
+    }
+
+    return () => {
+      room.off(RoomEvent.Disconnected, handleOnLeave);
+      room.off(RoomEvent.MediaDevicesError, handleError);
+    };
+  }, [room, props.connectionDetails, props.userChoices, connectOptions, handleError, handleOnLeave]);
+
+  const lowPowerMode = useLowCPUOptimizer(room);
+
+  React.useEffect(() => {
+    if (lowPowerMode) {
+      console.warn('Low power mode enabled');
+    }
+  }, [lowPowerMode]);
+
+  return (
+    <div className="bg-snow h-screen flex flex-col overflow-hidden">
+      <RoomContext.Provider value={room}>
+        <KeyboardShortcuts />
+        <CustomVideoConference onEndCall={props.onEndCall} />
+      </RoomContext.Provider>
+    </div>
+  );
+}
+
+function CustomVideoConference({ onEndCall }: { onEndCall: () => void }) {
+  const participants = useParticipants();
+  const localParticipant = useLocalParticipant();
+  const [showExitModal, setShowExitModal] = React.useState(false);
+
+  const { toggle: toggleMic, enabled: micEnabled } = useTrackToggle({
+    source: Track.Source.Microphone
+  });
+
+  const { toggle: toggleCamera, enabled: cameraEnabled } = useTrackToggle({
+    source: Track.Source.Camera
+  });
+
+  const handleEndCall = () => {
+    setShowExitModal(true);
   };
 
-  const handleToggleCamera = async () => {
-    if (room) {
-      const newEnabledState = isCameraOff; // If currently off, enable it
-      await room.localParticipant.setCameraEnabled(newEnabledState);
-      // State will be updated by the room event listeners
-    }
-  };
-
-  const handleConfirmExit = () => {
-    room?.disconnect();
+  const confirmEndCall = () => {
     setShowExitModal(false);
     onEndCall();
   };
@@ -227,16 +200,15 @@ export default function CallScreen({ onEndCall, meetingCode, userName }: { onEnd
   };
 
   return (
-    <div className="bg-snow h-screen flex flex-col overflow-hidden">
-      {/* Main Video Area - Refactored to show all participants in a grid */}
-      <div className="flex-1 m-6 overflow-hidden">
+    <div className="h-screen flex flex-col bg-snow">
+      {/* Video Grid - Takes up most of the screen with equal padding */}
+      <div className="flex-1 p-8 overflow-hidden">
         {participants.length > 0 ? (
           <div className={`h-full grid gap-4 ${getGridLayout(participants.length)}`}>
-            {participants.map(participant => (
+            {participants.map((participant) => (
               <div key={participant.identity} className="bg-gray-300 rounded-xl overflow-hidden relative">
                 <ParticipantTile participant={participant} />
-                {/* Show "You" label for local participant */}
-                {participant === room?.localParticipant && (
+                {participant === localParticipant.localParticipant && (
                   <div className="absolute top-3 left-3 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs">
                     You
                   </div>
@@ -251,40 +223,53 @@ export default function CallScreen({ onEndCall, meetingCode, userName }: { onEnd
         )}
       </div>
 
-      {/* Bottom UI Controls */}
-      <div className="bg-snow p-6">
-        <div className="flex items-center justify-between">
-          <span className="font-semibold text-lg text-eel">{meetingCode}</span>
+      {/* Custom Control Bar - Fixed at bottom */}
+      <div className="flex-shrink-0 flex items-center justify-center gap-6 p-8">
+        {/* Microphone Button */}
+        <button
+          onClick={toggleMic}
+          className={`p-4 rounded-full transition-colors duration-200 ${
+            micEnabled
+              ? 'bg-green-600 hover:bg-green-700'
+              : 'bg-red-600 hover:bg-red-700'
+          }`}
+        >
+          {micEnabled ? (
+            <MicrophoneIcon className="h-6 w-6 text-white" />
+          ) : (
+            <SpeakerXMarkIcon className="h-6 w-6 text-white" />
+          )}
+        </button>
 
-          {/* Center Controls */}
-          <div className="flex items-center space-x-3">
-            <button onClick={handleToggleMic} className={`p-3 rounded-full transition-colors duration-300 ${isMicMuted ? 'bg-red-600' : 'bg-eel/20 hover:bg-eel/30'}`}>
-              {isMicMuted ? <SpeakerXMarkIcon className="h-6 w-6 text-snow" /> : <MicrophoneIcon className="h-6 w-6 text-eel" />}
-            </button>
-            <button onClick={handleToggleCamera} className={`p-3 rounded-full transition-colors duration-300 ${isCameraOff ? 'bg-red-600' : 'bg-eel/20 hover:bg-eel/30'}`}>
-              {isCameraOff ? <VideoCameraSlashIcon className="h-6 w-6 text-snow" /> : <VideoCameraIcon className="h-6 w-6 text-eel" />}
-            </button>
-            <button onClick={() => setShowExitModal(true)} className="bg-red-600 p-3 rounded-full hover:bg-red-700 transition-colors duration-300 ml-4">
-              <PhoneIcon className="h-6 w-6 text-snow" />
-            </button>
-          </div>
+        {/* Camera Button */}
+        <button
+          onClick={toggleCamera}
+          className={`p-4 rounded-full transition-colors duration-200 ${
+            cameraEnabled
+              ? 'bg-green-600 hover:bg-green-700'
+              : 'bg-red-600 hover:bg-red-700'
+          }`}
+        >
+          {cameraEnabled ? (
+            <VideoCameraIcon className="h-6 w-6 text-white" />
+          ) : (
+            <VideoCameraSlashIcon className="h-6 w-6 text-white" />
+          )}
+        </button>
 
-          {/* Right Side Spacer */}
-          <div></div>
-        </div>
+        {/* Leave Button */}
+        <button
+          onClick={handleEndCall}
+          className="bg-red-600 hover:bg-red-700 p-4 rounded-full transition-colors duration-200"
+        >
+          <PhoneIcon className="h-6 w-6 text-white" />
+        </button>
       </div>
 
       <ExitConfirmationModal
         isOpen={showExitModal}
         onClose={() => setShowExitModal(false)}
-        onConfirm={handleConfirmExit}
-      />
-
-      {/* Error Toast */}
-      <ErrorToast
-        message={errorMessage || ''}
-        isVisible={!!errorMessage}
-        onClose={() => setErrorMessage(null)}
+        onConfirm={confirmEndCall}
       />
     </div>
   );

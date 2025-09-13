@@ -37,7 +37,7 @@ export default function Modal({ isOpen, onClose, children, title }: ModalProps) 
         className="fixed inset-0"
         onClick={onClose}
       />
-      <div className={`relative bg-snow rounded-2xl p-8 border border-gray-300 max-w-md w-full mx-4 transform [will-change:transform] ${
+      <div className={`relative bg-snow rounded-lg p-6 border border-gray-300 max-w-md w-full mx-4 transform [will-change:transform] ${
         isClosing ? 'animate-modal-out' : 'animate-modal-in'
       }`}>
         {title && (
@@ -45,7 +45,7 @@ export default function Modal({ isOpen, onClose, children, title }: ModalProps) 
             <h2 className="text-2xl font-bold text-eel font-display">{title}</h2>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
+              className="p-2 hover:bg-gray-100 rounded-md transition-colors duration-200"
             >
               <XMarkIcon className="h-5 w-5 text-eel" />
             </button>

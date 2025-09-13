@@ -11,7 +11,7 @@ interface JoinFormProps {
 
 export default function JoinForm({ onJoin }: JoinFormProps) {
   const router = useRouter();
-  const [name, setName] = useState('');
+  const [name] = useState('User'); // Default name, will be set in PreJoin
   const [code, setCode] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showError, setShowError] = useState(false);
@@ -24,49 +24,34 @@ export default function JoinForm({ onJoin }: JoinFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
-      showErrorToast('Please enter your name to join the meeting');
-      return;
-    }
     if (!code.trim()) {
       showErrorToast('Please enter a meeting code to join');
       return;
     }
-    localStorage.setItem('userName', name.trim());
+    localStorage.setItem('userName', name); // Default name, will be updated in PreJoin
     router.push(`/call/${code.trim().toUpperCase()}`);
   };
 
   const handleNewMeeting = () => {
-    if (!name.trim()) {
-      showErrorToast('Please enter your name before creating a meeting');
-      return;
-    }
     setIsModalOpen(true);
   };
 
   const handleModalJoin = (meetingCode: string) => {
     setCode(meetingCode);
-    localStorage.setItem('userName', name.trim());
+    localStorage.setItem('userName', name);
     router.push(`/call/${meetingCode}`);
   };
 
-  const isActive = name.trim().length > 0 && code.trim().length > 0;
+  const isActive = code.trim().length > 0;
 
   return (
     <>
       <form onSubmit={handleSubmit} className="space-y-4 w-full">
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Enter your name"
-          className="w-full px-6 py-4 bg-gray-100 text-eel placeholder-eel/50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-feather-green focus:border-transparent"
-        />
         <div className="flex items-center gap-4">
           <button
             type="button"
             onClick={handleNewMeeting}
-            className="bg-feather-green text-snow p-4 rounded-full hover:bg-mask-green transition-colors duration-300 flex items-center gap-2 px-6"
+            className="bg-feather-green text-snow p-4 rounded-lg hover:bg-mask-green transition-colors duration-200 flex items-center gap-2 px-6"
           >
             <VideoCameraIcon className="h-5 w-5" />
             New Meeting
@@ -76,12 +61,12 @@ export default function JoinForm({ onJoin }: JoinFormProps) {
             value={code}
             onChange={(e) => setCode(e.target.value)}
             placeholder="Enter meeting code"
-            className="flex-1 px-6 py-4 bg-gray-100 text-eel placeholder-eel/50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-feather-green focus:border-transparent"
+            className="flex-1 px-6 py-4 bg-gray-100 text-eel placeholder-eel/50 border border-gray-200 rounded-lg focus:outline-none focus:border-feather-green"
           />
           <button
             type="submit"
             disabled={!isActive}
-            className={`px-8 py-4 font-bold rounded-xl transition-all duration-300 ${
+            className={`px-8 py-4 font-medium rounded-lg transition-colors duration-200 ${
               isActive
                 ? 'bg-feather-green text-snow hover:bg-mask-green cursor-pointer'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
