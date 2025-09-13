@@ -161,7 +161,7 @@ function VideoConferenceComponent(props: {
   }, [lowPowerMode]);
 
   return (
-    <div className="bg-snow h-screen flex flex-col overflow-hidden">
+    <div style={{ backgroundColor: 'white', height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <RoomContext.Provider value={room}>
         <KeyboardShortcuts />
         <LiveAssistant room={room} />
@@ -251,16 +251,24 @@ function CustomVideoConference({ onEndCall }: { onEndCall: () => void }) {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-snow">
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'white' }}>
       {/* Video Grid - Takes up most of the screen with reduced padding */}
-      <div className="flex-1 p-4 overflow-hidden">
+      <div style={{ flex: 1, padding: '1rem', overflow: 'hidden' }}>
         {participants.length > 0 ? (
           <div className={`h-full grid gap-4 ${getGridLayout(participants.length)}`}>
             {participants.map((participant) => (
-              <div key={participant.identity} className="bg-gray-300 rounded-xl overflow-hidden relative">
+              <div key={participant.identity} className="sunken-panel" style={{ overflow: 'hidden', position: 'relative', backgroundColor: '#c0c0c0' }}>
                 <ParticipantTile participant={participant} />
                 {participant === localParticipant.localParticipant && (
-                  <div className="absolute top-3 left-3 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs">
+                  <div style={{ 
+                    position: 'absolute', 
+                    top: '8px', 
+                    left: '8px', 
+                    backgroundColor: 'rgba(0,0,0,0.7)', 
+                    color: 'white', 
+                    padding: '2px 6px', 
+                    fontSize: '11px' 
+                  }}>
                     You
                   </div>
                 )}
@@ -268,52 +276,67 @@ function CustomVideoConference({ onEndCall }: { onEndCall: () => void }) {
             ))}
           </div>
         ) : (
-          <div className="h-full w-full bg-gray-400 rounded-xl flex items-center justify-center">
-            <p className="text-gray-600">Waiting for others to join...</p>
+          <div className="sunken-panel" style={{ 
+            height: '100%', 
+            width: '100%', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            backgroundColor: '#c0c0c0'
+          }}>
+            <p style={{ color: '#666' }}>Waiting for others to join...</p>
           </div>
         )}
       </div>
 
       {/* Custom Control Bar - Fixed at bottom */}
-      <div className="flex-shrink-0 flex items-center justify-center gap-6 p-4">
+      <div style={{ 
+        flexShrink: 0, 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        gap: '1rem', 
+        padding: '1rem',
+        backgroundColor: '#c0c0c0',
+        borderTop: '1px solid #808080'
+      }}>
         {/* Microphone Button */}
         <button
           onClick={toggleMic}
-          className={`p-4 rounded-full transition-colors duration-200 ${
-            micEnabled
-              ? 'bg-green-600 hover:bg-green-700'
-              : 'bg-red-600 hover:bg-red-700'
-          }`}
+          style={{ 
+            padding: '8px 16px',
+            backgroundColor: micEnabled ? '#008000' : '#800000',
+            color: 'white',
+            minWidth: '100px'
+          }}
         >
-          {micEnabled ? (
-            <MicrophoneIcon className="h-6 w-6 text-white" />
-          ) : (
-            <SpeakerXMarkIcon className="h-6 w-6 text-white" />
-          )}
+          {micEnabled ? '🎤 ON' : '🎤 OFF'}
         </button>
 
         {/* Camera Button */}
         <button
           onClick={toggleCamera}
-          className={`p-4 rounded-full transition-colors duration-200 ${
-            cameraEnabled
-              ? 'bg-green-600 hover:bg-green-700'
-              : 'bg-red-600 hover:bg-red-700'
-          }`}
+          style={{ 
+            padding: '8px 16px',
+            backgroundColor: cameraEnabled ? '#008000' : '#800000',
+            color: 'white',
+            minWidth: '100px'
+          }}
         >
-          {cameraEnabled ? (
-            <VideoCameraIcon className="h-6 w-6 text-white" />
-          ) : (
-            <VideoCameraSlashIcon className="h-6 w-6 text-white" />
-          )}
+          {cameraEnabled ? '📹 ON' : '📹 OFF'}
         </button>
 
         {/* Leave Button */}
         <button
           onClick={handleEndCall}
-          className="bg-red-600 hover:bg-red-700 p-4 rounded-full transition-colors duration-200"
+          style={{ 
+            padding: '8px 16px',
+            backgroundColor: '#800000',
+            color: 'white',
+            minWidth: '100px'
+          }}
         >
-          <PhoneIcon className="h-6 w-6 text-white" />
+          📞 LEAVE
         </button>
       </div>
 

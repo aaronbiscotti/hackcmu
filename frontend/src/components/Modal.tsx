@@ -32,26 +32,36 @@ export default function Modal({ isOpen, onClose, children, title }: ModalProps) 
   if (!shouldRender) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div style={{ 
+      position: 'fixed', 
+      inset: 0, 
+      zIndex: 9999, 
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'center'
+    }}>
       <div
-        className="fixed inset-0"
+        style={{ position: 'fixed', inset: 0 }}
         onClick={onClose}
       />
-      <div className={`relative bg-snow rounded-lg p-6 border border-gray-300 max-w-md w-full mx-4 transform [will-change:transform] ${
+      <div className={`window ${
         isClosing ? 'animate-modal-out' : 'animate-modal-in'
-      }`}>
-        {title && (
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-eel font-display">{title}</h2>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-md transition-colors duration-200"
-            >
-              <XMarkIcon className="h-5 w-5 text-eel" />
-            </button>
+      }`} style={{ 
+        position: 'relative',
+        maxWidth: '400px',
+        width: '100%',
+        margin: '1rem',
+        zIndex: 10000
+      }}>
+        <div className="title-bar">
+          <div className="title-bar-text">{title || 'Dialog'}</div>
+          <div className="title-bar-controls">
+            <button aria-label="Close" onClick={onClose}></button>
           </div>
-        )}
-        {children}
+        </div>
+        <div className="window-body" style={{ padding: '1rem' }}>
+          {children}
+        </div>
       </div>
     </div>
   );

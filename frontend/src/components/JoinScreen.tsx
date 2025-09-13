@@ -7,18 +7,31 @@ import JoinForm from './JoinForm';
 
 export default function JoinScreen({ onJoin }: { onJoin: () => void }) {
   return (
-    <div className="bg-snow h-screen flex flex-col">
-      <div className="flex justify-between items-start flex-shrink-0">
-        <Navbar />
-        <div className="p-6">
-          <TimeDisplay />
+    <div style={{ padding: '2rem', minHeight: '100vh', position: 'relative' }}>
+      <div className="window" style={{ width: '100%', height: 'calc(100vh - 4rem)', position: 'relative' }}>
+        <div className="title-bar">
+          <div className="title-bar-text">Totter - Video Calls</div>
+          <div className="title-bar-controls">
+            <button aria-label="Minimize"></button>
+            <button aria-label="Maximize"></button>
+            <button aria-label="Close"></button>
+          </div>
         </div>
-      </div>
-      
-      <div className="flex-1 flex flex-col items-center justify-center px-6">
-        <div className="max-w-2xl mx-auto w-full">
-          <HeaderSection />
-          <JoinForm onJoin={onJoin} />
+        <div className="window-body" style={{ padding: '1rem', height: '100%', position: 'relative' }}>
+          <div style={{ height: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <TimeDisplay />
+            </div>
+            
+            <div style={{ display: 'flex', height: '100%' }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <HeaderSection />
+                <div style={{ marginTop: '2rem' }}>
+                  <JoinForm onJoin={onJoin} />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

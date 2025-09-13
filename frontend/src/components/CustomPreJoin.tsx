@@ -122,92 +122,120 @@ export default function CustomPreJoin({
   };
 
   return (
-    <div className="bg-white rounded-2xl p-8 max-w-md mx-auto">
-      {/* Video Preview */}
-      <div className="relative mb-6 bg-gray-900 rounded-xl overflow-hidden aspect-video h-48">
-        {videoTrack && videoEnabled ? (
-          <video
-            ref={videoEl}
-            className="w-full h-full object-cover"
-            style={{ transform: 'scaleX(-1)' }}
-            autoPlay
-            playsInline
-            muted
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gray-800">
-            <div className="text-center">
-              <div className="bg-gray-700 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
-                <VideoCameraSlashIcon className="h-8 w-8 text-gray-400" />
+    <div className="window" style={{ maxWidth: '400px', margin: '0 auto' }}>
+      <div className="title-bar">
+        <div className="title-bar-text">Join Meeting</div>
+      </div>
+      <div className="window-body" style={{ padding: '1rem' }}>
+        {/* Video Preview */}
+        <div className="sunken-panel" style={{ 
+          marginBottom: '1rem', 
+          padding: '0',
+          height: '200px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: '#000'
+        }}>
+          {videoTrack && videoEnabled ? (
+            <video
+              ref={videoEl}
+              style={{ 
+                width: '100%', 
+                height: '100%', 
+                objectFit: 'cover',
+                transform: 'scaleX(-1)' 
+              }}
+              autoPlay
+              playsInline
+              muted
+            />
+          ) : (
+            <div style={{ 
+              width: '100%', 
+              height: '100%', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              backgroundColor: '#333'
+            }}>
+              <div style={{ textAlign: 'center', color: '#ccc' }}>
+                <div style={{ marginBottom: '0.5rem' }}>📹</div>
+                <p style={{ fontSize: '12px', margin: 0 }}>Camera is off</p>
               </div>
-              <p className="text-gray-400 text-sm">Camera is off</p>
             </div>
+          )}
+        </div>
+
+        {/* Controls */}
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          gap: '0.5rem', 
+          marginBottom: '1rem' 
+        }}>
+          {/* Microphone Toggle */}
+          <button
+            onClick={handleAudioToggle}
+            style={{ 
+              padding: '8px 12px',
+              backgroundColor: audioEnabled ? '#008000' : '#800000',
+              color: 'white',
+              width: '90px'
+            }}
+          >
+            {audioEnabled ? '🎤 ON' : '🎤 OFF'}
+          </button>
+
+          {/* Camera Toggle */}
+          <button
+            onClick={handleVideoToggle}
+            style={{ 
+              padding: '8px 12px',
+              backgroundColor: videoEnabled ? '#008000' : '#800000',
+              color: 'white',
+              width: '90px'
+            }}
+          >
+            {videoEnabled ? '📹 ON' : '📹 OFF'}
+          </button>
+        </div>
+
+        {/* Username and Join Form */}
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: '1rem' }}>
+            <label htmlFor="username" style={{ display: 'block', marginBottom: '0.25rem' }}>
+              {userLabel}:
+            </label>
+            <input
+              id="username"
+              name="username"
+              type="text"
+              value={username}
+              placeholder={userLabel}
+              onChange={(e) => {
+                setUsername(e.target.value);
+                saveUsername(e.target.value);
+              }}
+              autoComplete="off"
+              style={{ width: '100%', padding: '8px 12px', fontSize: '14px', height: '32px' }}
+            />
           </div>
-        )}
+          <button
+            type="submit"
+            disabled={!isValid}
+            style={{ 
+              width: '100%',
+              padding: '8px 16px',
+              fontSize: '14px',
+              opacity: isValid ? 1 : 0.5,
+              cursor: isValid ? 'pointer' : 'not-allowed'
+            }}
+          >
+            {joinLabel}
+          </button>
+        </form>
       </div>
-
-      {/* Controls */}
-      <div className="flex justify-center gap-4 mb-6">
-        {/* Microphone Toggle */}
-        <button
-          onClick={handleAudioToggle}
-          className={`p-3 rounded-full transition-colors duration-200 ${
-            audioEnabled
-              ? 'bg-green-600 hover:bg-green-700'
-              : 'bg-red-600 hover:bg-red-700'
-          }`}
-        >
-          {audioEnabled ? (
-            <MicrophoneIcon className="h-6 w-6 text-white" />
-          ) : (
-            <SpeakerXMarkIcon className="h-6 w-6 text-white" />
-          )}
-        </button>
-
-        {/* Camera Toggle */}
-        <button
-          onClick={handleVideoToggle}
-          className={`p-3 rounded-full transition-colors duration-200 ${
-            videoEnabled
-              ? 'bg-green-600 hover:bg-green-700'
-              : 'bg-red-600 hover:bg-red-700'
-          }`}
-        >
-          {videoEnabled ? (
-            <VideoCameraIcon className="h-6 w-6 text-white" />
-          ) : (
-            <VideoCameraSlashIcon className="h-6 w-6 text-white" />
-          )}
-        </button>
-      </div>
-
-      {/* Username and Join Form */}
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <input
-          className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl focus:outline-none focus:border-feather-green text-eel placeholder-eel/50"
-          id="username"
-          name="username"
-          type="text"
-          value={username}
-          placeholder={userLabel}
-          onChange={(e) => {
-            setUsername(e.target.value);
-            saveUsername(e.target.value);
-          }}
-          autoComplete="off"
-        />
-        <button
-          className={`w-full py-3 px-6 rounded-xl font-medium transition-colors duration-200 ${
-            isValid
-              ? 'bg-feather-green text-white hover:bg-mask-green'
-              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-          }`}
-          type="submit"
-          disabled={!isValid}
-        >
-          {joinLabel}
-        </button>
-      </form>
     </div>
   );
 }

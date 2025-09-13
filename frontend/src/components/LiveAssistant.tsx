@@ -356,66 +356,106 @@ export default function LiveAssistant({ room }: LiveAssistantProps) {
   };
 
   return (
-    <div className="fixed bottom-24 right-8 z-50 p-4 bg-white/90 backdrop-blur-md rounded-lg shadow-lg max-w-sm min-w-[300px]">
-      <div className="flex items-center gap-3 mb-3">
-        <div className={`w-3 h-3 rounded-full ${getStatusColor()}`}></div>
-        <p className="font-bold text-gray-800">Live Assistant</p>
-        <span className="text-xs text-gray-600">({getStatusText()})</span>
-      </div>
-
-      {/* Animation Display & Debugging */}
-      <div className="text-center mb-3 p-3 bg-gray-100 rounded-lg">
-        <p className="text-sm font-semibold text-gray-700">Emotion from LLM:</p>
-        <p className="text-2xl font-mono font-bold text-blue-600">{currentAnimation}</p>
-        <div className="text-xs text-gray-500 mt-2">
-          <p>Audio chunks: {audioDataCount}</p>
-          <p>{debugInfo}</p>
+    <div className="window" style={{ 
+      position: 'fixed', 
+      bottom: '100px', 
+      right: '20px', 
+      zIndex: 50, 
+      maxWidth: '320px',
+      minWidth: '300px'
+    }}>
+      <div className="title-bar">
+        <div className="title-bar-text">Live Assistant</div>
+        <div className="title-bar-controls">
+          <button aria-label="Minimize"></button>
         </div>
       </div>
-
-      {/* Transcript Display */}
-      <div className="mb-3">
-        <div className="text-sm text-gray-600 min-h-[50px] max-h-[80px] overflow-y-auto border rounded p-2 bg-gray-50">
-          {partialTranscript && (
-            <p className="text-gray-500 italic mb-1">{partialTranscript}...</p>
-          )}
-          {analysis?.transcript && (
-            <p className="text-gray-800 font-medium">{analysis.transcript}</p>
-          )}
-          {!partialTranscript && !analysis?.transcript && (
-            <p className="text-gray-400">Listening...</p>
-          )}
+      <div className="window-body" style={{ padding: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+          <div style={{ 
+            width: '8px', 
+            height: '8px', 
+            backgroundColor: getStatusColor() === 'bg-green-500' ? '#008000' : 
+                           getStatusColor() === 'bg-yellow-500' ? '#808000' : '#800000'
+          }}></div>
+          <span style={{ fontSize: '11px' }}>({getStatusText()})</span>
         </div>
+
+        {/* Animation Display & Debugging */}
+        <div className="sunken-panel" style={{ 
+          textAlign: 'center', 
+          marginBottom: '8px', 
+          padding: '8px',
+          backgroundColor: '#c0c0c0'
+        }}>
+          <p style={{ fontSize: '11px', fontWeight: 'bold' }}>Emotion from LLM:</p>
+          <p style={{ fontSize: '16px', fontFamily: 'monospace', fontWeight: 'bold', color: '#000080' }}>
+            {currentAnimation}
+          </p>
+          <div style={{ fontSize: '9px', color: '#666', marginTop: '4px' }}>
+            <p>Audio chunks: {audioDataCount}</p>
+            <p>{debugInfo}</p>
+          </div>
+        </div>
+
+        {/* Transcript Display */}
+        <div style={{ marginBottom: '8px' }}>
+          <div className="sunken-panel" style={{ 
+            fontSize: '11px', 
+            minHeight: '50px', 
+            maxHeight: '80px', 
+            overflowY: 'auto', 
+            padding: '4px',
+            backgroundColor: 'white'
+          }}>
+            {partialTranscript && (
+              <p style={{ color: '#666', fontStyle: 'italic', marginBottom: '4px' }}>
+                {partialTranscript}...
+              </p>
+            )}
+            {analysis?.transcript && (
+              <p style={{ color: '#000', fontWeight: 'bold' }}>{analysis.transcript}</p>
+            )}
+            {!partialTranscript && !analysis?.transcript && (
+              <p style={{ color: '#999' }}>Listening...</p>
+            )}
+          </div>
+        </div>
+
+        {/* Metrics Display */}
+        {analysis?.metrics && connectionStatus === 'active' && (
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: '1fr 1fr', 
+            gap: '4px', 
+            fontSize: '10px' 
+          }}>
+            <div className="sunken-panel" style={{ padding: '4px', backgroundColor: '#e0e0ff' }}>
+              <div style={{ fontWeight: 'bold', color: '#000080' }}>WPM</div>
+              <div style={{ fontSize: '14px', fontFamily: 'monospace' }}>{analysis.metrics.wpm}</div>
+            </div>
+            <div className="sunken-panel" style={{ padding: '4px', backgroundColor: '#e0ffe0' }}>
+              <div style={{ fontWeight: 'bold', color: '#008000' }}>Clarity</div>
+              <div style={{ fontSize: '14px', fontFamily: 'monospace' }}>{analysis.metrics.clarity_score}%</div>
+            </div>
+            <div className="sunken-panel" style={{ padding: '4px', backgroundColor: '#ffe0e0' }}>
+              <div style={{ fontWeight: 'bold', color: '#800000' }}>Fillers</div>
+              <div style={{ fontSize: '14px', fontFamily: 'monospace' }}>{analysis.metrics.filler_words}</div>
+            </div>
+            <div className="sunken-panel" style={{ padding: '4px', backgroundColor: '#f0e0ff' }}>
+              <div style={{ fontWeight: 'bold', color: '#800080' }}>Words</div>
+              <div style={{ fontSize: '14px', fontFamily: 'monospace' }}>{analysis.metrics.word_count}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Error Display */}
+        {connectionStatus === 'error' && (
+          <div style={{ fontSize: '10px', color: '#800000', backgroundColor: '#ffe0e0', padding: '4px', marginTop: '4px' }}>
+            Connection error. Check console for details.
+          </div>
+        )}
       </div>
-
-      {/* Metrics Display */}
-      {analysis?.metrics && connectionStatus === 'active' && (
-        <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
-          <div className="bg-blue-50 p-2 rounded">
-            <div className="font-semibold text-blue-700">WPM</div>
-            <div className="text-lg font-mono">{analysis.metrics.wpm}</div>
-          </div>
-          <div className="bg-green-50 p-2 rounded">
-            <div className="font-semibold text-green-700">Clarity</div>
-            <div className="text-lg font-mono">{analysis.metrics.clarity_score}%</div>
-          </div>
-          <div className="bg-orange-50 p-2 rounded">
-            <div className="font-semibold text-orange-700">Fillers</div>
-            <div className="text-lg font-mono">{analysis.metrics.filler_words}</div>
-          </div>
-          <div className="bg-purple-50 p-2 rounded">
-            <div className="font-semibold text-purple-700">Words</div>
-            <div className="text-lg font-mono">{analysis.metrics.word_count}</div>
-          </div>
-        </div>
-      )}
-
-      {/* Error Display */}
-      {connectionStatus === 'error' && (
-        <div className="text-xs text-red-600 bg-red-50 p-2 rounded mt-2">
-          Connection error. Check console for details.
-        </div>
-      )}
     </div>
   );
 }
