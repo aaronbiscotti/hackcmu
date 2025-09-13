@@ -16,6 +16,7 @@ We built Totter as a video calling platform that helps you communicate more effe
 - **Simple Join Flow**: Easy meeting creation and participation
 
 ![angry](https://github.com/user-attachments/assets/77afc1bf-aeee-43eb-88df-4048a97ebc55)
+{ width=800px }
 
 ## Totter the Otter
 
@@ -27,7 +28,7 @@ Totter the Otter appears in the top-left corner during video calls with various 
 - **Excited** - Totter matches your excitation
 - **Angry** - Totter did not like what you said. Be careful.
 
-<img width="300" height="80" alt="image" src="https://github.com/user-attachments/assets/a1670bde-a90b-4639-8451-f836c090c454" />
+<img width="2940" height="1330" alt="image" src="https://github.com/user-attachments/assets/a1670bde-a90b-4639-8451-f836c090c454" />
 
 
 ## Architecture
