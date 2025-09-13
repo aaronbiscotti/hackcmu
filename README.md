@@ -16,7 +16,6 @@ We built Totter as a video calling platform that helps you communicate more effe
 - **Simple Join Flow**: Easy meeting creation and participation
 
 ![angry](https://github.com/user-attachments/assets/77afc1bf-aeee-43eb-88df-4048a97ebc55)
-{ width=800px }
 
 ## Totter the Otter
 
