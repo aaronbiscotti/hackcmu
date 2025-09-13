@@ -24,6 +24,11 @@ interface LiveAssistantProps {
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL
   ? process.env.NEXT_PUBLIC_BACKEND_URL.replace(/^http/, 'ws')
+  : 'wss://361c01c7de59.ngrok-free.app';
+
+// Fallback WebSocket URL (can be set via environment variable)
+const BACKEND_FALLBACK = process.env.NEXT_PUBLIC_BACKEND_FALLBACK_URL
+  ? process.env.NEXT_PUBLIC_BACKEND_FALLBACK_URL.replace(/^http/, 'ws')
   : 'ws://localhost:8001';
 
 export default function LiveAssistant({ room }: LiveAssistantProps) {
@@ -73,17 +78,67 @@ export default function LiveAssistant({ room }: LiveAssistantProps) {
   const setupWebSocket = useCallback(async (): Promise<WebSocket | null> => {
     return new Promise((resolve) => {
       console.log('🔌 Setting up WebSocket connection');
-      const ws = new WebSocket(`${BACKEND_URL}/ws/transcribe`);
+      
+      // Try primary WebSocket endpoint first
+      const tryPrimary = () => {
+        const ws = new WebSocket(`${BACKEND_URL}/ws/transcribe`);
+        
+        const primaryTimeout = setTimeout(() => {
+          console.log('Primary WebSocket timeout, trying fallback...');
+          ws.close();
+          tryFallback();
+        }, 5000);
+        
+        ws.onopen = () => {
+          clearTimeout(primaryTimeout);
+          console.log('✅ Primary WebSocket connected');
+          setupWebSocketHandlers(ws, resolve);
+        };
+        
+        ws.onerror = () => {
+          clearTimeout(primaryTimeout);
+          console.log('Primary WebSocket failed, trying fallback...');
+          tryFallback();
+        };
+      };
+      
+      // Fallback WebSocket endpoint
+      const tryFallback = () => {
+        const ws = new WebSocket(`${BACKEND_FALLBACK}/ws/transcribe`);
+        
+        const fallbackTimeout = setTimeout(() => {
+          console.log('❌ Fallback WebSocket timeout');
+          setConnectionStatus('error');
+          setDebugInfo('Connection timeout');
+          resolve(null);
+        }, 5000);
+        
+        ws.onopen = () => {
+          clearTimeout(fallbackTimeout);
+          console.log('✅ Fallback WebSocket connected');
+          setupWebSocketHandlers(ws, resolve);
+        };
+        
+        ws.onerror = () => {
+          clearTimeout(fallbackTimeout);
+          console.log('❌ Both WebSocket endpoints failed');
+          setConnectionStatus('error');
+          setDebugInfo('Connection failed');
+          resolve(null);
+        };
+      };
+      
+      // Helper function to setup WebSocket handlers
+      const setupWebSocketHandlers = (ws: WebSocket, resolve: (value: WebSocket | null) => void) => {
+        const timeoutId = setTimeout(() => {
+          console.log('❌ WebSocket connection timeout');
+          setConnectionStatus('error');
+          setDebugInfo('Connection timeout');
+          ws.close();
+          resolve(null);
+        }, 10000); // 10 second timeout
 
-      const timeoutId = setTimeout(() => {
-        console.log('❌ WebSocket connection timeout');
-        setConnectionStatus('error');
-        setDebugInfo('Connection timeout');
-        ws.close();
-        resolve(null);
-      }, 10000); // 10 second timeout
-
-      ws.onopen = () => {
+        ws.onopen = () => {
         console.log('✅ WebSocket connected');
         clearTimeout(timeoutId);
         setIsConnected(true);
@@ -156,6 +211,10 @@ export default function LiveAssistant({ room }: LiveAssistantProps) {
         setConnectionStatus('disconnected');
         setDebugInfo('WebSocket disconnected');
       };
+      };
+      
+      // Start connection attempt with primary endpoint
+      tryPrimary();
     });
   }, []);
 
@@ -238,6 +297,12 @@ export default function LiveAssistant({ room }: LiveAssistantProps) {
       console.log('🎚️ Creating AudioContext');
       const context = new AudioContext({ sampleRate: 16000 });
       audioContextRef.current = context;
+
+      // Resume context if it's in a suspended state (browser security)
+      if (context.state === 'suspended') {
+        console.log('AudioContext is suspended, attempting to resume...');
+        await context.resume();
+      }
 
       // Load audio worklet
       try {

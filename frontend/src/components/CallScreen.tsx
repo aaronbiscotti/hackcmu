@@ -29,6 +29,11 @@ import { useLowCPUOptimizer } from '@/lib/usePerfomanceOptimiser';
 
 const CONN_DETAILS_ENDPOINT = process.env.NEXT_PUBLIC_BACKEND_URL
   ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/connection-details`
+  : 'https://361c01c7de59.ngrok-free.app/api/connection-details';
+
+// Fallback endpoint (can be set via environment variable)
+const CONN_DETAILS_FALLBACK = process.env.NEXT_PUBLIC_BACKEND_FALLBACK_URL
+  ? `${process.env.NEXT_PUBLIC_BACKEND_FALLBACK_URL}/api/connection-details`
   : 'http://localhost:8001/api/connection-details';
 
 // ReactionBox component for displaying reactions based on LLM emotion
@@ -131,12 +136,45 @@ export default function CallScreen({ onEndCall, meetingCode, userName }: { onEnd
 
   const handlePreJoinSubmit = React.useCallback(async (values: LocalUserChoices) => {
     setPreJoinChoices(values);
-    const url = new URL(CONN_DETAILS_ENDPOINT, window.location.origin);
-    url.searchParams.append('roomName', meetingCode);
-    url.searchParams.append('participantName', values.username);
-    const connectionDetailsResp = await fetch(url.toString());
-    const connectionDetailsData = await connectionDetailsResp.json();
-    setConnectionDetails(connectionDetailsData);
+    
+    // Try ngrok endpoint first, fallback to localhost
+    const tryFetch = async (endpoint: string) => {
+      const url = new URL(endpoint);
+      url.searchParams.append('roomName', meetingCode);
+      url.searchParams.append('participantName', values.username);
+      
+      // Use simple GET request to avoid CORS preflight
+      return fetch(url.toString(), { 
+        method: 'GET',
+        mode: 'cors',
+        credentials: 'omit', // Don't send credentials to avoid CORS issues
+        headers: {
+          'ngrok-skip-browser-warning': 'true'
+        }
+      });
+    };
+
+    try {
+      console.log('Trying primary endpoint:', CONN_DETAILS_ENDPOINT);
+      let connectionDetailsResp = await tryFetch(CONN_DETAILS_ENDPOINT);
+      
+      // If primary fails, try fallback
+      if (!connectionDetailsResp.ok) {
+        console.log('Primary endpoint failed, trying fallback...');
+        connectionDetailsResp = await tryFetch(CONN_DETAILS_FALLBACK);
+      }
+      
+      if (!connectionDetailsResp.ok) {
+        throw new Error(`HTTP ${connectionDetailsResp.status}: ${connectionDetailsResp.statusText}`);
+      }
+      
+      const connectionDetailsData = await connectionDetailsResp.json();
+      setConnectionDetails(connectionDetailsData);
+    } catch (error) {
+      console.error('Connection failed:', error);
+      alert('Failed to connect to backend. Please make sure the backend server is running on https://361c01c7de59.ngrok-free.app');
+      throw error;
+    }
   }, [meetingCode]);
   const handlePreJoinError = React.useCallback((e: Error) => console.error(e), []);
 
@@ -184,7 +222,7 @@ function VideoConferenceComponent(props: {
       audioCaptureDefaults: {
         deviceId: props.userChoices.audioDeviceId ?? undefined,
       },
-      adaptiveStream: true,
+      adaptiveStream: false, // Disabled to fix green screen video issues
       dynacast: true,
     };
   }, [props.userChoices]);

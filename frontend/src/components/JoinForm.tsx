@@ -58,7 +58,10 @@ export default function JoinForm({ onJoin }: JoinFormProps) {
               marginBottom: '1rem', 
               fontSize: '18px', 
               padding: '12px 16px',
-              height: '50px'
+              height: '50px',
+              border: '2px inset #c0c0c0',
+              backgroundColor: 'white',
+              fontFamily: "'VT323', monospace"
             }}
           />
         </div>
@@ -67,10 +70,14 @@ export default function JoinForm({ onJoin }: JoinFormProps) {
             type="button"
             onClick={handleNewMeeting}
             style={{
-              padding: '12px 20px',
-              fontSize: '16px',
+              padding: '8px 16px',
+              fontSize: '14px',
               minWidth: '140px',
-              height: '50px'
+              height: '50px',
+              backgroundColor: '#c0c0c0',
+              border: '2px outset #c0c0c0',
+              fontFamily: "'VT323', monospace",
+              cursor: 'pointer'
             }}
           >
             New Meeting
@@ -79,10 +86,15 @@ export default function JoinForm({ onJoin }: JoinFormProps) {
             type="submit"
             disabled={!isActive}
             style={{
-              padding: '12px 20px',
-              fontSize: '16px',
+              padding: '8px 16px',
+              fontSize: '14px',
               minWidth: '100px',
-              height: '50px'
+              height: '50px',
+              backgroundColor: isActive ? '#c0c0c0' : '#808080',
+              border: isActive ? '2px outset #c0c0c0' : '2px inset #c0c0c0',
+              fontFamily: "'VT323', monospace",
+              cursor: isActive ? 'pointer' : 'not-allowed',
+              color: isActive ? '#000' : '#666'
             }}
           >
             Join

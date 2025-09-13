@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, WebSocket
+from fastapi import FastAPI, Request, WebSocket, Response
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import json
@@ -14,8 +14,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import other python files
-from profiles import Profile
-from buddy import Buddy
+from Profiles import Profile
+from Buddy import Buddy
 from livekit_api import setup_livekit_routes
 from services import create_transcription_service, get_emotion_from_text
 
@@ -34,11 +34,18 @@ app = FastAPI()
 # Add CORS middleware to allow frontend requests
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # Frontend dev server
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=["*"],  # Allow all origins for ngrok compatibility
+    allow_credentials=False,  # Must be False when allow_origins is "*"
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
+
+# Test endpoint to verify server is running updated code
+@app.get("/test")
+async def test_endpoint():
+    return {"message": "Server updated successfully!", "timestamp": "2025-09-13-18:11"}
 
 client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 

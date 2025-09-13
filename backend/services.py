@@ -9,7 +9,7 @@ import httpx
 import os
 from dotenv import load_dotenv
 
-from main import process_data
+# from Main import process_data  # Circular import - will be handled differently
 
 load_dotenv()
 
@@ -144,7 +144,8 @@ class TranscriptionService:
                         }
                     }
 
-                    processed = await process_data(data_packet)
+                    # processed = await process_data(data_packet)  # TODO: Fix circular import
+                    processed = {"animation_trigger": "speaking"}  # Temporary fix
 
                     return {
                         "type": "final",
