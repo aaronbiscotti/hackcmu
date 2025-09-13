@@ -6,6 +6,7 @@ import instructor
 from pydantic import BaseModel, Field
 from typing import Dict
 import asyncio
+import os
 
 # Import other python files
 import Profiles
@@ -58,7 +59,7 @@ async def startup_event():
     for i in range(EXPECTED_PROFILES):
         while True:
             try:
-                with open("profile.json", "r") as f:
+                with open(f"profile{i}.json", "r") as f:
                     data = json.load(f)
                 new_profile = Profiles.Profile(
                     name=data.get("name", f"User{len(profiles)}"),
@@ -68,6 +69,7 @@ async def startup_event():
                 )
                 profiles[i] = new_profile  # Use index instead of append since we initialized with [None] * EXPECTED_PROFILES
                 print(f"Profile {i} registered: {new_profile}")
+
                 break  # Exit the while loop once profile is loaded
             except FileNotFoundError:
                 print(f"Waiting for profile {i} data...")
@@ -92,9 +94,9 @@ def process_data(data):
         # Get current state
         previous_state = {
             "name": profile_name,
-            "profession": profile.prof,
-            "memory": profile.mem,
-            "understanding_threshold": profile.understand_threshold,
+            "profession": profile.profession,
+            "memory": profile.memory,
+            "understanding_threshold": profile.understanding_threshold,
             "wps": profile.wps,
             "filler_words": profile.filler_words,
             "interest": profile.interest,
@@ -108,16 +110,16 @@ def process_data(data):
         try:
             # Use instructor for structured response
             updated_state = llm.messages.create(
-                model="claude-3-5-sonnet-20241022",
+                model="claude-3-5-haiku-20241022",
                 max_tokens=1000,
                 messages=[{"role": "user", "content": formatted_prompt}],
                 response_model=ProfileState
             )
             
             # Update profile with new state
-            profile.prof = updated_state.profession
-            profile.mem = updated_state.memory
-            profile.understand_threshold = updated_state.understanding_threshold
+            profile.profession = updated_state.profession
+            profile.memory = updated_state.memory
+            profile.understanding_threshold = updated_state.understanding_threshold
             profile.wps = updated_state.wps
             profile.filler_words = updated_state.filler_words
             profile.interest = updated_state.interest
@@ -141,6 +143,7 @@ def parse_data(data):
 @app.post("/process")
 async def receive_data(request: Request):
     data = await request.json()
+    print("Data received:", data)
     process_data(data)
     return {"status": "success"}
 
