@@ -3,11 +3,14 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import json
 import anthropic
-import instructor
 from pydantic import BaseModel, Field
-from typing import Dict
+from typing import Dict, Optional, Any
 import asyncio
 import os
+import time
+import logging
+import httpx
+from vosk import Model, KaldiRecognizer
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -17,14 +20,16 @@ load_dotenv()
 from Profiles import Profile
 from Buddy import Buddy
 from livekit_api import setup_livekit_routes
-from services import create_transcription_service, get_emotion_from_text
+
+
+FILLER_WORDS = {"um", "uh", "like", "so", "you know", "actually", "basically", "literally", "well", "right"}
 
 # Pydantic model for structured output
 class ProfileState(BaseModel):
     profession: str = Field(..., description="Professional role/background")
     memory: Dict[str, str] = Field(..., description="Updated knowledge, assumptions, or insights")
     understanding_threshold: float = Field(..., ge=0, le=1, description="Minimum comprehension needed to stay engaged")
-    wps: int = Field(..., ge=0, le=10, description="Words per second when speaking")
+    wps: int = Field(..., ge=0, le=100, description="Words per second when speaking")
     filler_words: int = Field(..., ge=0, le=50, description="Number of filler words per minute when speaking")
     interest: float = Field(..., ge=0, le=1, description="Current interest level in the topic")
     confidence: float = Field(..., ge=0, le=1, description="Confidence in understanding of current discussion")
@@ -54,19 +59,82 @@ setup_livekit_routes(app)
 
 # Constants
 EXPECTED_PROFILES = 2
+VOSK_MODEL_PATH = "vosk-model"
+VOSK_SAMPLE_RATE = 16000
+ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 
 # Global variables
 profiles = []
 buddy = None
 prompt_template = None
 
-# On server startup, set up the objects holding the "profiles" of people
+# LOGGING
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Load Vosk model
+vosk_model = None
+try:
+    if os.path.exists(VOSK_MODEL_PATH):
+        vosk_model = Model(VOSK_MODEL_PATH)
+        logger.info("Vosk model loaded successfully")
+    else:
+        logger.warning(f"Vosk model not found at {VOSK_MODEL_PATH}")
+except Exception as e:
+    logger.error(f"Failed to load Vosk model: {e}")
+
+# LLM helper
+async def get_emotion_from_text(text: str, profile: Dict[str, Any]) -> str:
+    if not text.strip():
+        return "idle"
+
+    headers = {
+        "x-api-key": os.getenv("ANTHROPIC_API_KEY"),
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json"
+    }
+
+    profile_context = json.dumps(profile, indent=2)
+    prompt = (
+        "Analyze the emotion of the following speech given the user's profile and memory. In addition, note that if wps is high (>= 5) we probably want to react with slow emotion, if filler is high (>= 4) we would probably want confused, etc.\n\n"
+        f"Profile:\n{profile_context}\n\n"
+        f"Text: '{text}'\n\n"
+        "Respond with ONLY ONE word only from: idle, question, nodding, shaking_head, excited, thinking, confused, speaking, slow. Make sure there is ABSOLUTELY NO punctuation, extra words, newlines, etc.\n\n"
+    )
+
+    payload = {
+        "model": "claude-3-5-haiku-20241022",
+        "max_tokens": 10,
+        "messages": [{"role": "user", "content": prompt}]
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(ANTHROPIC_API_URL, json=payload, headers=headers)
+            response.raise_for_status()
+            result = response.json()
+            emotion = result.get('content', [{}])[0].get('text', 'speaking').strip().lower()
+            logger.info(f"LLM emotion analysis: '{text}' with profile -> '{emotion}'")
+            return emotion
+    except Exception as e:
+        logger.error(f"Emotion analysis error: {e}")
+        return "speaking"
+
+# TranscriptionService factory
+def create_transcription_service():
+    from services import TranscriptionService
+    try:
+        return TranscriptionService()
+    except ValueError as e:
+        logger.error(f"Cannot create transcription service: {e}")
+        return None
+
+# On server startup
 @app.on_event("startup")
 async def startup_event():
     global profiles, buddy, prompt_template
     print("Backend server is starting up!")
 
-    # Step 1: Load XML prompt template
     try:
         with open("prompts/base.xml", "r") as f:
             prompt_template = f.read()
@@ -75,19 +143,16 @@ async def startup_event():
         print(f"Error loading prompt template: {e}")
         return
 
-    # Step 2: Initialize empty profiles list and buddy
     profiles = [None] * EXPECTED_PROFILES
     buddy = Buddy()
     print("Buddy initialized")
     
-    # Step 3: Initialize transcription service
     transcription_service = create_transcription_service()
     if transcription_service:
         print("Voice recognition system ready")
     else:
         print("Voice recognition system disabled - no model found")
 
-    # Step 4: Wait for profiles to connect (simulate by reading from profile.json)
     print(f"Waiting for {EXPECTED_PROFILES} profiles to connect...")
     for i in range(EXPECTED_PROFILES):
         while True:
@@ -112,17 +177,22 @@ async def startup_event():
 
     print(f"All {EXPECTED_PROFILES} profiles connected.")
 
-# Process incoming data, update profiles, and compute emotion
+# Process data
 async def process_data(data):
     global profiles, buddy, prompt_template
     print("Processing data:")
 
     profile_name, message, timestamp = parse_data(data)
     profile = profiles[0]  # Assuming first profile is the main user
+    print(f"Loaded profile: {profile}")
 
     emotion = "speaking"
     if profile is not None and prompt_template:
-        # Calculate WPS
+        # Calculate filler words from the current message
+        words = message.lower().split()
+        filler_count = sum(1 for word in words if word.strip('.,!?') in FILLER_WORDS)
+        profile.filler_words = filler_count
+
         if profile.last_timestamp is not None and profile.last_message is not None:
             time_diff = timestamp - profile.last_timestamp
             if time_diff > 0:
@@ -139,7 +209,7 @@ async def process_data(data):
             "profession": profile.profession,
             "memory": profile.memory,
             "understanding_threshold": profile.understanding_threshold,
-            "filler_words": profile.filler_words,
+            "filler_words": filler_count,  # Use the calculated value
             "interest": profile.interest,
             "confidence": profile.confidence,
             "current_emotion": profile.current_emotion
@@ -149,26 +219,35 @@ async def process_data(data):
         formatted_prompt = formatted_prompt.replace("{{previous_state_json}}", json.dumps(previous_state, indent=2))
 
         try:
+            print(f"Trying to send to LLM with previous state: {previous_state}")
             response = client.messages.create(
                 model="claude-3-7-sonnet-20250219",
                 max_tokens=1000,
                 messages=[{"role": "user", "content": formatted_prompt}]
             )
+            print("LLM response received")
 
             response_text = response.content[0].text
             print(f"Raw response: {response_text}")
 
-            updated_state = ProfileState(
-                profession=profile.profession,
-                memory=profile.memory,
-                understanding_threshold=profile.understanding_threshold,
-                wps=profile.wps,
-                filler_words=profile.filler_words,
-                interest=profile.interest,
-                confidence=profile.confidence
-            )
+            # Parse the response text into a dictionary
+            try:
+                state_dict = json.loads(response_text)
+                updated_state = ProfileState(
+                    profession=state_dict['profession'],
+                    memory=state_dict['memory'],
+                    understanding_threshold=state_dict['understanding_threshold'],
+                    wps=profile.wps,
+                    filler_words=filler_count,  # Use calculated value instead of LLM response
+                    interest=state_dict['interest'],
+                    confidence=state_dict['confidence']
+                )
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse LLM response: {e}")
+                raise
 
-            # Update profile
+            print(f"Updated response parsed: {updated_state}")
+
             profile.profession = updated_state.profession
             profile.memory = updated_state.memory
             profile.understanding_threshold = updated_state.understanding_threshold
@@ -177,14 +256,14 @@ async def process_data(data):
             profile.interest = updated_state.interest
             profile.confidence = updated_state.confidence
 
-            # Emotion decision with profile context
             emotion = await get_emotion_from_text(message, previous_state)
             profile.current_emotion = emotion
 
             print(f"Updated user profile state: {profile}")
 
         except Exception as e:
-            print(f"Error processing user profile: {e}")
+            print("Error during LLM processing or profile update!")
+            print(f"Error: {e}")
 
     return {"emotion": emotion}
 
