@@ -1,11 +1,11 @@
 'use client';
 
-import { Room, RoomEvent, TrackPublication } from 'livekit-client';
+import { Room, RoomEvent, TrackPublication, Track } from 'livekit-client';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 
 // Define the structure of the data received from the backend
 interface AnalysisData {
-  type: 'final' | 'partial' | 'error';
+  type: 'final' | 'partial' | 'error' | 'ping';
   transcript?: string;
   metrics?: {
     wpm: number;
@@ -24,6 +24,11 @@ interface LiveAssistantProps {
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL
   ? process.env.NEXT_PUBLIC_BACKEND_URL.replace(/^http/, 'ws')
+  : 'wss://361c01c7de59.ngrok-free.app';
+
+// Fallback WebSocket URL (can be set via environment variable)
+const BACKEND_FALLBACK = process.env.NEXT_PUBLIC_BACKEND_FALLBACK_URL
+  ? process.env.NEXT_PUBLIC_BACKEND_FALLBACK_URL.replace(/^http/, 'ws')
   : 'ws://localhost:8001';
 
 export default function LiveAssistant({ room }: LiveAssistantProps) {
@@ -33,14 +38,8 @@ export default function LiveAssistant({ room }: LiveAssistantProps) {
   const [partialTranscript, setPartialTranscript] = useState('');
   const [connectionStatus, setConnectionStatus] = useState('initializing');
   const [debugInfo, setDebugInfo] = useState('Starting...');
-  const [audioDataCount, setAudioDataCount] = useState(0);
-
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const setupAttemptRef = useRef<number>(0);
-  const isSetupInProgressRef = useRef<boolean>(false);
 
   const cleanup = useCallback(() => {
     console.log('🧹 Cleaning up LiveAssistant resources');
@@ -55,46 +54,121 @@ export default function LiveAssistant({ room }: LiveAssistantProps) {
       socketRef.current = null;
     }
 
-    if (workletNodeRef.current) {
-      workletNodeRef.current.disconnect();
-      workletNodeRef.current = null;
-    }
-
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
-
     setIsConnected(false);
     setConnectionStatus('disconnected');
-    isSetupInProgressRef.current = false;
   }, []);
 
   const setupWebSocket = useCallback(async (): Promise<WebSocket | null> => {
     return new Promise((resolve) => {
       console.log('🔌 Setting up WebSocket connection');
-      const ws = new WebSocket(`${BACKEND_URL}/ws/transcribe`);
 
-      const timeoutId = setTimeout(() => {
-        console.log('❌ WebSocket connection timeout');
-        setConnectionStatus('error');
-        setDebugInfo('Connection timeout');
-        ws.close();
-        resolve(null);
-      }, 10000); // 10 second timeout
+      // Get the local participant's identity
+      const participantIdentity = room.localParticipant.identity;
+      console.log('🆔 Using participant identity:', participantIdentity);
 
-      ws.onopen = () => {
-        console.log('✅ WebSocket connected');
-        clearTimeout(timeoutId);
-        setIsConnected(true);
-        setConnectionStatus('active');
-        setDebugInfo('WebSocket connected');
-        resolve(ws);
+      // Try primary WebSocket endpoint first
+      const tryPrimary = () => {
+        try {
+          const ws = new WebSocket(`${BACKEND_URL}/ws/transcribe/${participantIdentity}`);
+
+          const primaryTimeout = setTimeout(() => {
+            console.log('Primary WebSocket timeout, trying fallback...');
+            if (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN) {
+              ws.close();
+            }
+            tryFallback();
+          }, 5000);
+
+          ws.onopen = () => {
+            clearTimeout(primaryTimeout);
+            console.log('✅ Primary WebSocket connected');
+            setupWebSocketHandlers(ws, resolve);
+          };
+
+          ws.onerror = (error) => {
+            clearTimeout(primaryTimeout);
+            console.log('Primary WebSocket failed:', error);
+            tryFallback();
+          };
+        } catch (error) {
+          console.log('Primary WebSocket creation failed:', error);
+          tryFallback();
+        }
       };
+
+      // Fallback WebSocket endpoint
+      const tryFallback = () => {
+        try {
+          const ws = new WebSocket(`${BACKEND_FALLBACK}/ws/transcribe/${participantIdentity}`);
+
+          const fallbackTimeout = setTimeout(() => {
+            console.log('❌ Fallback WebSocket timeout');
+            setConnectionStatus('error');
+            setDebugInfo('Connection timeout - both endpoints failed');
+            if (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN) {
+              ws.close();
+            }
+            resolve(null);
+          }, 5000);
+
+          ws.onopen = () => {
+            clearTimeout(fallbackTimeout);
+            console.log('✅ Fallback WebSocket connected');
+            setupWebSocketHandlers(ws, resolve);
+          };
+
+          ws.onerror = (error) => {
+            clearTimeout(fallbackTimeout);
+            console.log('❌ Fallback WebSocket failed:', error);
+            setConnectionStatus('error');
+            setDebugInfo('Both endpoints failed');
+            resolve(null);
+          };
+        } catch (error) {
+          console.log('❌ Fallback WebSocket creation failed:', error);
+          setConnectionStatus('error');
+          setDebugInfo('WebSocket creation failed');
+          resolve(null);
+        }
+      };
+      
+      // Helper function to setup WebSocket handlers
+      const setupWebSocketHandlers = (ws: WebSocket, resolve: (value: WebSocket | null) => void) => {
+        // Clear any existing handlers
+        ws.onopen = null;
+        ws.onmessage = null;
+        ws.onerror = null;
+        ws.onclose = null;
+
+        const timeoutId = setTimeout(() => {
+          console.log('❌ WebSocket connection timeout');
+          setConnectionStatus('error');
+          setDebugInfo('Connection timeout');
+          if (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN) {
+            ws.close();
+          }
+          resolve(null);
+        }, 10000); // 10 second timeout
+
+        ws.onopen = () => {
+          console.log('✅ WebSocket connected');
+          clearTimeout(timeoutId);
+          setIsConnected(true);
+          setConnectionStatus('active');
+          setDebugInfo('WebSocket connected');
+          resolve(ws);
+        };
 
       ws.onmessage = (event) => {
         try {
           const data: AnalysisData = JSON.parse(event.data);
+
+          // Handle ping-pong keep-alive mechanism
+          if (data.type === 'ping') {
+            console.log('🏓 Received ping, sending pong');
+            ws.send(JSON.stringify({ type: 'pong' }));
+            return;
+          }
 
           if (data.type === 'error') {
             console.error('❌ Backend error:', data.message);
@@ -149,13 +223,27 @@ export default function LiveAssistant({ room }: LiveAssistantProps) {
         resolve(null);
       };
 
-      ws.onclose = () => {
-        console.log('🔌 WebSocket disconnected');
+      ws.onclose = (event) => {
+        console.log('🔌 WebSocket disconnected', event.code, event.reason);
         clearTimeout(timeoutId);
         setIsConnected(false);
         setConnectionStatus('disconnected');
-        setDebugInfo('WebSocket disconnected');
+        setDebugInfo(`WebSocket disconnected: ${event.code}`);
+
+        // Attempt to reconnect if not a normal closure
+        if (event.code !== 1000 && event.code !== 1001) {
+          console.log('📶 Attempting to reconnect WebSocket in 3 seconds...');
+          setTimeout(() => {
+            if (!isSetupInProgressRef.current) {
+              setupAudioProcessing();
+            }
+          }, 3000);
+        }
       };
+      };
+      
+      // Start connection attempt with primary endpoint
+      tryPrimary();
     });
   }, []);
 
@@ -186,9 +274,9 @@ export default function LiveAssistant({ room }: LiveAssistantProps) {
       console.log('✅ Room connected, looking for audio tracks');
       setDebugInfo('Room connected, finding audio...');
 
-      // Get all audio tracks
+      // Get all audio tracks - look for microphone source specifically
       const allTracks = Array.from(room.localParticipant.trackPublications.values());
-      const audioTracks = allTracks.filter(pub => pub.kind === 'audio');
+      const audioTracks = allTracks.filter(pub => pub.kind === 'audio' && pub.source === Track.Source.Microphone);
 
       console.log('📋 All tracks:', allTracks.map(t => ({ name: t.trackName, kind: t.kind, source: t.source })));
       console.log('🎵 Audio tracks found:', audioTracks.length);
@@ -239,6 +327,12 @@ export default function LiveAssistant({ room }: LiveAssistantProps) {
       const context = new AudioContext({ sampleRate: 16000 });
       audioContextRef.current = context;
 
+      // Resume context if it's in a suspended state (browser security)
+      if (context.state === 'suspended') {
+        console.log('AudioContext is suspended, attempting to resume...');
+        await context.resume();
+      }
+
       // Load audio worklet
       try {
         console.log('⚙️ Loading audio worklet');
@@ -247,8 +341,14 @@ export default function LiveAssistant({ room }: LiveAssistantProps) {
       } catch (e) {
         console.error('❌ Error loading audio worklet:', e);
         setConnectionStatus('error');
-        setDebugInfo('Worklet load failed');
+        setDebugInfo(`Worklet load failed: ${e}`);
         isSetupInProgressRef.current = false;
+
+        // Try to clean up the context if worklet fails
+        if (context && context.state !== 'closed') {
+          context.close();
+          audioContextRef.current = null;
+        }
         return;
       }
 
@@ -262,18 +362,26 @@ export default function LiveAssistant({ room }: LiveAssistantProps) {
       }
       socketRef.current = ws;
 
+      // Create analyser node for VAD
+      console.log('🎚️ Creating analyser node for VAD');
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 512;
+      analyser.smoothingTimeConstant = 0.1;
+      analyserRef.current = analyser;
+
       // Create audio worklet node
       console.log('🎛️ Creating audio worklet node');
       const workletNode = new AudioWorkletNode(context, 'audio-processor');
       workletNodeRef.current = workletNode;
 
-      // Setup message handler from worklet
+      // Setup message handler from worklet with VAD filtering
       workletNode.port.onmessage = (event) => {
-        if (ws.readyState === WebSocket.OPEN && event.data.type === 'audio') {
-          const audioData = event.data.data;
-          console.log(`📤 Sending audio chunk: ${audioData.byteLength} bytes`);
-          setAudioDataCount(prev => prev + 1);
+        // The worklet now sends the correctly formatted Int16Array buffer directly
+        const audioData = event.data;
+        // Only send audio data when speaking is detected and audio is not suppressed
+        if (ws.readyState === WebSocket.OPEN && audioData.byteLength > 0 && !isAudioSuppressed) {
           ws.send(audioData);
+          setAudioDataCount(prev => prev + 1);
         }
       };
 
@@ -283,12 +391,55 @@ export default function LiveAssistant({ room }: LiveAssistantProps) {
         new MediaStream([mediaStreamTrack])
       );
 
+      // Connect to both analyser (for VAD) and worklet (for audio processing)
+      mediaStreamSource.connect(analyser);
       mediaStreamSource.connect(workletNode);
       // Note: Don't connect to destination to avoid feedback
 
+      // Setup Voice Activity Detection
+      console.log('🎙️ Setting up Voice Activity Detection');
+      const startVAD = () => {
+        if (!analyser) return;
+
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        
+        const checkSpeaking = () => {
+          analyser.getByteFrequencyData(dataArray);
+          const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
+
+          if (average > VAD_THRESHOLD) {
+            // Speech detected
+            if (!isSpeaking) {
+              console.log('🎤 Speech detected, starting audio transmission');
+              setIsSpeaking(true);
+              setIsAudioSuppressed(false);
+              setDebugInfo(`Speaking (level: ${Math.round(average)})`);
+            }
+            
+            // Reset the silence timer
+            if (speakingTimerRef.current) {
+              clearTimeout(speakingTimerRef.current);
+            }
+            
+            speakingTimerRef.current = setTimeout(() => {
+              console.log('🤫 Silence detected, stopping audio transmission');
+              setIsSpeaking(false);
+              setIsAudioSuppressed(true);
+              setDebugInfo('Listening...');
+            }, VAD_SILENCE_TIMEOUT);
+          }
+        };
+
+        // Start monitoring audio levels
+        vadIntervalRef.current = setInterval(checkSpeaking, 100);
+        console.log('✅ VAD monitoring started');
+      };
+
+      startVAD();
+
       console.log('✅ Audio processing setup complete');
       setConnectionStatus('active');
-      setDebugInfo('Recording active');
+      setDebugInfo('Listening...');
       isSetupInProgressRef.current = false;
 
     } catch (error) {
@@ -390,6 +541,19 @@ export default function LiveAssistant({ room }: LiveAssistantProps) {
                            getStatusColor() === 'bg-yellow-500' ? '#808000' : '#800000'
           }}></div>
           <span style={{ fontSize: '11px' }}>({getStatusText()})</span>
+          {connectionStatus === 'active' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <div style={{ 
+                width: '6px', 
+                height: '6px', 
+                borderRadius: '50%',
+                backgroundColor: isSpeaking ? '#00ff00' : '#666666'
+              }}></div>
+              <span style={{ fontSize: '9px', color: '#666' }}>
+                {isSpeaking ? 'Speaking' : 'Silent'}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Animation Display & Debugging */}
@@ -404,7 +568,7 @@ export default function LiveAssistant({ room }: LiveAssistantProps) {
             {currentAnimation}
           </p>
           <div style={{ fontSize: '9px', color: '#666', marginTop: '4px' }}>
-            <p>Audio chunks: {audioDataCount}</p>
+            <p>Audio chunks: {audioDataCount} {isAudioSuppressed ? '(Suppressed)' : '(Active)'}</p>
             <p>{debugInfo}</p>
           </div>
         </div>

@@ -39,12 +39,19 @@ export default function ParticipantTile({ participant }: ParticipantTileProps) {
   useEffect(() => {
     const updateVideoPublication = () => {
       const pub = participant.getTrackPublication(Track.Source.Camera);
+      if (pub && pub.track && !pub.isSubscribed) {
+        console.log('Video track not subscribed for:', participant.identity);
+      }
       setVideoPublication(pub);
       setIsCameraMuted(pub?.isMuted ?? false);
     };
 
     const updateAudioPublication = () => {
-      setAudioPublication(participant.getTrackPublication(Track.Source.Microphone));
+      const pub = participant.getTrackPublication(Track.Source.Microphone);
+      if (pub && pub.track && !pub.isSubscribed) {
+        console.log('Audio track not subscribed for:', participant.identity);
+      }
+      setAudioPublication(pub);
     };
 
     const onTrackMuted = (publication: TrackPublication) => {
@@ -111,11 +118,12 @@ export default function ParticipantTile({ participant }: ParticipantTileProps) {
   }, [audioPublication]);
 
   // Decide whether to show video or the placeholder
-  const shouldShowVideo = videoPublication && videoPublication.isSubscribed && !isCameraMuted;
+  // For local participants, we don't need to check isSubscribed
+  const shouldShowVideo = videoPublication && videoPublication.track && (participant.isLocal || videoPublication.isSubscribed) && !isCameraMuted;
 
   return (
     <div
-      className={`relative h-full w-full bg-feather-green overflow-hidden rounded-xl ${
+      className={`relative h-full w-full bg-feather-green overflow-hidden ${
         isSpeaking ? 'ring-4 ring-blue-500 ring-opacity-75' : ''
       }`}
       data-lk-local-participant={participant.isLocal}
@@ -130,9 +138,9 @@ export default function ParticipantTile({ participant }: ParticipantTileProps) {
         />
       ) : (
         <div className="h-full w-full flex items-center justify-center">
-          <div className="bg-snow rounded-full flex items-center justify-center text-eel font-bold w-32 h-32 text-4xl relative">
+          <div className="bg-snow flex items-center justify-center text-eel font-bold w-32 h-32 text-4xl relative">
             {isCameraMuted && (
-               <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
+               <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                  <VideoCameraSlashIcon className="h-16 w-16 text-white" />
                </div>
             )}
@@ -148,7 +156,7 @@ export default function ParticipantTile({ participant }: ParticipantTileProps) {
         muted={participant.isLocal}
       />
 
-      <div className="absolute bottom-3 left-3 bg-black/40 px-2 py-1 rounded-md">
+      <div className="absolute bottom-3 left-3 bg-black/40 px-2 py-1">
         <h3 className="text-snow font-medium text-sm">
           {cleanName(participant.identity)}
         </h3>

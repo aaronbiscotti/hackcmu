@@ -6,11 +6,13 @@ import { ConnectionDetails } from '@/lib/types';
 import {
   LocalUserChoices,
   RoomContext,
-  useParticipants,
-  useLocalParticipant,
+  GridLayout,
+  ParticipantTile,
+  VideoConference,
+  TrackToggle,
+  useTracks,
+  ControlBar,
 } from '@livekit/components-react';
-import ParticipantTile from './ParticipantTile';
-import ExitConfirmationModal from './ExitConfirmationModal';
 import CustomPreJoin from './CustomPreJoin';
 import LiveAssistant from './LiveAssistant';
 import {
@@ -23,17 +25,23 @@ import {
   TrackPublishDefaults,
   VideoCaptureOptions,
   Track,
+  RemoteParticipant,
+  RemoteTrack,
+  RemoteTrackPublication,
 } from 'livekit-client';
-import { MicrophoneIcon, VideoCameraIcon, PhoneIcon, VideoCameraSlashIcon, SpeakerXMarkIcon } from '@heroicons/react/24/outline';
 import { useLowCPUOptimizer } from '@/lib/usePerfomanceOptimiser';
 
 const CONN_DETAILS_ENDPOINT = process.env.NEXT_PUBLIC_BACKEND_URL
   ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/connection-details`
+  : 'https://361c01c7de59.ngrok-free.app/api/connection-details';
+
+// Fallback endpoint (can be set via environment variable)
+const CONN_DETAILS_FALLBACK = process.env.NEXT_PUBLIC_BACKEND_FALLBACK_URL
+  ? `${process.env.NEXT_PUBLIC_BACKEND_FALLBACK_URL}/api/connection-details`
   : 'http://localhost:8001/api/connection-details';
 
 // ReactionBox component for displaying reactions based on LLM emotion
 function ReactionBox({ room }: { room: Room }) {
-  const [currentEmotion, setCurrentEmotion] = React.useState('idle');
   const [isShowingSurprised, setIsShowingSurprised] = React.useState(false);
   const [gifKey, setGifKey] = React.useState(0); // Force GIF restart
 
@@ -43,17 +51,15 @@ function ReactionBox({ room }: { room: Room }) {
     // Listen for emotion changes from LiveAssistant
     const handleEmotionChange = (event: CustomEvent) => {
       const emotion = event.detail;
-      setCurrentEmotion(emotion);
-      
+
       // If emotion is not idle, show surprised.gif
       if (emotion !== 'idle' && !isShowingSurprised) {
         setIsShowingSurprised(true);
         setGifKey(prev => prev + 1); // Force GIF restart
-        
+
         // Reset to idle after GIF duration (assume 3 seconds for surprised.gif)
         setTimeout(() => {
           setIsShowingSurprised(false);
-          setCurrentEmotion('idle');
         }, 3000);
       }
     };
@@ -67,7 +73,7 @@ function ReactionBox({ room }: { room: Room }) {
   }, [room, isShowingSurprised]);
 
   return (
-    <div className="window" style={{ width: '200px', height: '250px' }}>
+    <div className="window" style={{ width: '220px', height: '300px' }}>
       <div className="title-bar">
         <div className="title-bar-text">Totter</div>
       </div>
@@ -131,12 +137,45 @@ export default function CallScreen({ onEndCall, meetingCode, userName }: { onEnd
 
   const handlePreJoinSubmit = React.useCallback(async (values: LocalUserChoices) => {
     setPreJoinChoices(values);
-    const url = new URL(CONN_DETAILS_ENDPOINT, window.location.origin);
-    url.searchParams.append('roomName', meetingCode);
-    url.searchParams.append('participantName', values.username);
-    const connectionDetailsResp = await fetch(url.toString());
-    const connectionDetailsData = await connectionDetailsResp.json();
-    setConnectionDetails(connectionDetailsData);
+    
+    // Try ngrok endpoint first, fallback to localhost
+    const tryFetch = async (endpoint: string) => {
+      const url = new URL(endpoint);
+      url.searchParams.append('roomName', meetingCode);
+      url.searchParams.append('participantName', values.username);
+      
+      // Use simple GET request to avoid CORS preflight
+      return fetch(url.toString(), { 
+        method: 'GET',
+        mode: 'cors',
+        credentials: 'omit', // Don't send credentials to avoid CORS issues
+        headers: {
+          'ngrok-skip-browser-warning': 'true'
+        }
+      });
+    };
+
+    try {
+      console.log('Trying primary endpoint:', CONN_DETAILS_ENDPOINT);
+      let connectionDetailsResp = await tryFetch(CONN_DETAILS_ENDPOINT);
+      
+      // If primary fails, try fallback
+      if (!connectionDetailsResp.ok) {
+        console.log('Primary endpoint failed, trying fallback...');
+        connectionDetailsResp = await tryFetch(CONN_DETAILS_FALLBACK);
+      }
+      
+      if (!connectionDetailsResp.ok) {
+        throw new Error(`HTTP ${connectionDetailsResp.status}: ${connectionDetailsResp.statusText}`);
+      }
+      
+      const connectionDetailsData = await connectionDetailsResp.json();
+      setConnectionDetails(connectionDetailsData);
+    } catch (error) {
+      console.error('Connection failed:', error);
+      alert('Failed to connect to backend. Please make sure the backend server is running on https://361c01c7de59.ngrok-free.app');
+      throw error;
+    }
   }, [meetingCode]);
   const handlePreJoinError = React.useCallback((e: Error) => console.error(e), []);
 
@@ -184,7 +223,7 @@ function VideoConferenceComponent(props: {
       audioCaptureDefaults: {
         deviceId: props.userChoices.audioDeviceId ?? undefined,
       },
-      adaptiveStream: true,
+      adaptiveStream: true, // Enable adaptive streaming to fix video subscription issues
       dynacast: true,
     };
   }, [props.userChoices]);
@@ -206,8 +245,34 @@ function VideoConferenceComponent(props: {
   }, []);
 
   React.useEffect(() => {
+    const handleParticipantConnected = (participant: RemoteParticipant) => {
+      console.log('Participant connected:', participant.identity);
+      // Subscribe to all tracks from new participants
+      participant.trackPublications.forEach((publication) => {
+        if (publication.isSubscribed) return;
+        console.log('Auto-subscribing to track:', publication.trackSid, 'from', participant.identity);
+        publication.setSubscribed(true);
+      });
+    };
+
+    const handleTrackPublished = (publication: RemoteTrackPublication, participant: RemoteParticipant) => {
+      console.log('Track published:', publication.trackSid, publication.kind, 'from', participant.identity);
+      // Automatically subscribe to newly published tracks
+      if (!publication.isSubscribed) {
+        console.log('Auto-subscribing to newly published track:', publication.trackSid);
+        publication.setSubscribed(true);
+      }
+    };
+
+    const handleTrackSubscribed = (track: RemoteTrack, publication: RemoteTrackPublication, participant: RemoteParticipant) => {
+      console.log('Track subscribed:', track.kind, 'from', participant.identity);
+    };
+
     room.on(RoomEvent.Disconnected, handleOnLeave);
     room.on(RoomEvent.MediaDevicesError, handleError);
+    room.on(RoomEvent.ParticipantConnected, handleParticipantConnected);
+    room.on(RoomEvent.TrackPublished, handleTrackPublished);
+    room.on(RoomEvent.TrackSubscribed, handleTrackSubscribed);
 
     room
       .connect(
@@ -232,8 +297,14 @@ function VideoConferenceComponent(props: {
     return () => {
       room.off(RoomEvent.Disconnected, handleOnLeave);
       room.off(RoomEvent.MediaDevicesError, handleError);
+      room.off(RoomEvent.ParticipantConnected, handleParticipantConnected);
+      room.off(RoomEvent.TrackPublished, handleTrackPublished);
+      room.off(RoomEvent.TrackSubscribed, handleTrackSubscribed);
     };
   }, [room, props.connectionDetails, props.userChoices, connectOptions, handleError, handleOnLeave]);
+
+
+
 
   const lowPowerMode = useLowCPUOptimizer(room);
 
@@ -248,193 +319,42 @@ function VideoConferenceComponent(props: {
       <RoomContext.Provider value={room}>
         <KeyboardShortcuts />
         <LiveAssistant room={room} />
-        <CustomVideoConference onEndCall={props.onEndCall} />
+        
+        {/* Full Height Video Conference with Totter Overlay */}
+        <div style={{ flex: 1, height: '100vh', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+          <VideoConference>
+            <VideoGrid />
+            <ControlBar>
+              <TrackToggle source={Track.Source.Microphone} />
+              <TrackToggle source={Track.Source.Camera} />
+              <button onClick={props.onEndCall} style={{ backgroundColor: '#800000', color: 'white', padding: '8px 16px' }}>
+                Leave
+              </button>
+            </ControlBar>
+          </VideoConference>
+          
+          {/* Totter Character Overlay - Top Left */}
+          <div style={{ 
+            position: 'absolute', 
+            top: '20px', 
+            left: '20px', 
+            zIndex: 1000 
+          }}>
+            <ReactionBox room={room} />
+          </div>
+        </div>
       </RoomContext.Provider>
     </div>
   );
 }
 
-function CustomVideoConference({ onEndCall }: { onEndCall: () => void }) {
-  const participants = useParticipants();
-  const localParticipant = useLocalParticipant();
-  const [showExitModal, setShowExitModal] = React.useState(false);
-  const [micEnabled, setMicEnabled] = React.useState(true);
-  const [cameraEnabled, setCameraEnabled] = React.useState(true);
-
-  // Use room context to get access to the room
-  const room = React.useContext(RoomContext);
-
-  const toggleMic = React.useCallback(async () => {
-    if (room) {
-      try {
-        await room.localParticipant.setMicrophoneEnabled(!micEnabled);
-        setMicEnabled(!micEnabled);
-      } catch (error) {
-        console.error('Error toggling microphone:', error);
-      }
-    }
-  }, [room, micEnabled]);
-
-  const toggleCamera = React.useCallback(async () => {
-    if (room) {
-      try {
-        await room.localParticipant.setCameraEnabled(!cameraEnabled);
-        setCameraEnabled(!cameraEnabled);
-      } catch (error) {
-        console.error('Error toggling camera:', error);
-      }
-    }
-  }, [room, cameraEnabled]);
-
-  // Update state when track publications change
-  React.useEffect(() => {
-    if (!room) return;
-
-    const updateTrackStates = () => {
-      const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
-      const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera);
-
-      setMicEnabled(micPub?.isEnabled ?? false);
-      setCameraEnabled(camPub?.isEnabled ?? false);
-    };
-
-    // Update initially
-    updateTrackStates();
-
-    // Listen for track changes
-    room.localParticipant.on('trackPublished', updateTrackStates);
-    room.localParticipant.on('trackUnpublished', updateTrackStates);
-    room.localParticipant.on('trackMuted', updateTrackStates);
-    room.localParticipant.on('trackUnmuted', updateTrackStates);
-
-    return () => {
-      room.localParticipant.off('trackPublished', updateTrackStates);
-      room.localParticipant.off('trackUnpublished', updateTrackStates);
-      room.localParticipant.off('trackMuted', updateTrackStates);
-      room.localParticipant.off('trackUnmuted', updateTrackStates);
-    };
-  }, [room]);
-
-  const handleEndCall = () => {
-    setShowExitModal(true);
-  };
-
-  const confirmEndCall = () => {
-    setShowExitModal(false);
-    onEndCall();
-  };
-
-  // Helper function to determine grid layout based on participant count
-  const getGridLayout = (count: number) => {
-    if (count === 1) return "grid-cols-1";
-    if (count === 2) return "grid-cols-1 md:grid-cols-2";
-    if (count <= 4) return "grid-cols-2";
-    if (count <= 6) return "grid-cols-2 lg:grid-cols-3";
-    return "grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
-  };
-
+function VideoGrid() {
+  const tracks = useTracks([Track.Source.Camera, Track.Source.ScreenShare], { onlySubscribed: false });
+  
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'white', position: 'relative' }}>
-      {/* Overlay Reaction Box - Top left */}
-      {room && (
-        <div style={{ position: 'absolute', top: '1rem', left: '1rem', zIndex: 1000 }}>
-          <ReactionBox room={room} />
-        </div>
-      )}
-      
-      {/* Video Grid - Takes up most of the screen with reduced padding */}
-      <div style={{ flex: 1, padding: '1rem', overflow: 'hidden' }}>
-        {participants.length > 0 ? (
-          <div className={`h-full grid gap-4 ${getGridLayout(participants.length)}`}>
-            {participants.map((participant) => (
-              <div key={participant.identity} className="sunken-panel" style={{ overflow: 'hidden', position: 'relative', backgroundColor: '#c0c0c0' }}>
-                <ParticipantTile participant={participant} />
-                {participant === localParticipant.localParticipant && (
-                  <div style={{ 
-                    position: 'absolute', 
-                    top: '8px', 
-                    left: '8px', 
-                    backgroundColor: 'rgba(0,0,0,0.7)', 
-                    color: 'white', 
-                    padding: '2px 6px', 
-                    fontSize: '11px' 
-                  }}>
-                    You
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="sunken-panel" style={{ 
-            height: '100%', 
-            width: '100%', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            backgroundColor: '#c0c0c0'
-          }}>
-            <p style={{ color: '#666' }}>Waiting for others to join...</p>
-          </div>
-        )}
-      </div>
-
-      {/* Custom Control Bar - Fixed at bottom */}
-      <div style={{ 
-        flexShrink: 0, 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        gap: '1rem', 
-        padding: '1rem',
-        backgroundColor: '#c0c0c0',
-        borderTop: '1px solid #808080'
-      }}>
-        {/* Microphone Button */}
-        <button
-          onClick={toggleMic}
-          style={{ 
-            padding: '8px 16px',
-            backgroundColor: micEnabled ? '#008000' : '#800000',
-            color: 'white',
-            minWidth: '100px'
-          }}
-        >
-          {micEnabled ? '🎤 ON' : '🎤 OFF'}
-        </button>
-
-        {/* Camera Button */}
-        <button
-          onClick={toggleCamera}
-          style={{ 
-            padding: '8px 16px',
-            backgroundColor: cameraEnabled ? '#008000' : '#800000',
-            color: 'white',
-            minWidth: '100px'
-          }}
-        >
-          {cameraEnabled ? '📹 ON' : '📹 OFF'}
-        </button>
-
-        {/* Leave Button */}
-        <button
-          onClick={handleEndCall}
-          style={{ 
-            padding: '8px 16px',
-            backgroundColor: '#800000',
-            color: 'white',
-            minWidth: '100px'
-          }}
-        >
-          📞 LEAVE
-        </button>
-      </div>
-
-      <ExitConfirmationModal
-        isOpen={showExitModal}
-        onClose={() => setShowExitModal(false)}
-        onConfirm={confirmEndCall}
-      />
-    </div>
+    <GridLayout tracks={tracks}>
+      <ParticipantTile />
+    </GridLayout>
   );
 }
+

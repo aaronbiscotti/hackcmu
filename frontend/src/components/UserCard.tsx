@@ -17,10 +17,10 @@ export default function UserCard({ name, isFullHeight = true }: UserCardProps) {
   };
 
   return (
-    <div className={`bg-feather-green rounded-xl flex flex-col items-center justify-center relative p-8 ${
+    <div className={`bg-feather-green flex flex-col items-center justify-center relative p-8 ${
       isFullHeight ? 'h-full' : 'aspect-square'
     }`}>
-      <div className="bg-snow rounded-full flex items-center justify-center text-eel font-bold w-32 h-32 text-4xl">
+      <div className="bg-snow flex items-center justify-center text-eel font-bold w-32 h-32 text-4xl">
         {getInitials(name)}
       </div>
       <div className="absolute bottom-6 left-6">
