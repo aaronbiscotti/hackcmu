@@ -92,7 +92,7 @@ async def get_emotion_from_text(text: str) -> str:
     )
 
     payload = {
-        "model": "claude-3-5-haiku-20241022",
+        "model": "claude-3-7-sonnet-20250219",
         "max_tokens": 10,
         "messages": [{"role": "user", "content": prompt}]
     }

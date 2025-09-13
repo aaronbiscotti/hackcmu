@@ -1,6 +1,6 @@
 'use client';
 
-import { Room, Track, RoomEvent } from 'livekit-client';
+import { Room, RoomEvent, TrackPublication } from 'livekit-client';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 
 // Define the structure of the data received from the backend
@@ -292,7 +292,7 @@ export default function LiveAssistant({ room }: LiveAssistantProps) {
   useEffect(() => {
     console.log('🚀 LiveAssistant mounting');
 
-    const handleTrackPublished = (publication: any) => {
+    const handleTrackPublished = (publication: TrackPublication) => {
       console.log('📡 Track published:', publication.trackName, publication.kind);
       if (publication.kind === 'audio') {
         console.log('🎤 Audio track published, setting up processing');
@@ -300,7 +300,7 @@ export default function LiveAssistant({ room }: LiveAssistantProps) {
       }
     };
 
-    const handleTrackUnpublished = (publication: any) => {
+    const handleTrackUnpublished = (publication: TrackPublication) => {
       console.log('📡 Track unpublished:', publication.trackName, publication.kind);
       if (publication.kind === 'audio') {
         setDebugInfo('Audio track unpublished');
