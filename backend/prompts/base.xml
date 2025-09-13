@@ -66,11 +66,12 @@
     <required_memory_keys>
       <description>When adding new information to the `memory` object, you **must** use keys from this list:</description>
       <keys>
-        - "main_business_value"
-        - "technical_concerns"
-        - "implementation_timeline"
-        - "budget_implications"
-        - "risk_factors"
+        - "they know main_business_value"
+        - "they know technical_concerns"
+        - "they understand technical_jargon"
+        - "they know implementation_timeline"
+        - "they know budget_implications"
+        - "they know risk_factors"
       </keys>
     </required_memory_keys>
 
@@ -90,7 +91,7 @@
         <previous_state>
         {
           "profession": "Marketing Director",
-          "memory": { "main_business_value": "Confident True" },
+          "memory": { "they know main_business_value": "Uncertain True" },
           "understanding_threshold": 0.5,
           "wps": 3,
           "filler_words": 8,
@@ -104,8 +105,8 @@
       {
         "profession": "Marketing Director",
         "memory": {
-          "main_business_value": "Confident True",
-          "technical_concerns": "Uncertain True"
+          "they know main_business_value": "Uncertain True",
+          "they know budget_implications": "Confident False"
         },
         "understanding_threshold": 0.5,
         "wps": 3,

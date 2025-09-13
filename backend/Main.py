@@ -148,7 +148,7 @@ def process_data(data):
         try:
             # Use direct Anthropic API for now (TODO: Fix instructor integration)
             response = client.messages.create(
-                model="claude-3-5-haiku-20241022",
+                model="claude-3-7-sonnet-20250219",
                 max_tokens=1000,
                 messages=[{"role": "user", "content": formatted_prompt}]
             )
