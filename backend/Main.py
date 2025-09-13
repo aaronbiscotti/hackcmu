@@ -61,7 +61,9 @@ def process_data(data):
         ]
     )
 
-    # 
+    # Process response
+    response.content # llm response text
+    print("LLM response:", response.content)
 
 # Parses incoming data
 def parse_data(data):
