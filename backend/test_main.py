@@ -22,7 +22,7 @@ def test_process_endpoint():
     test_data = {
         "profile_name": "TestUser",
         "message": "Let's use the API to query the LLM, it will allow our PCB to use the embeedded cores with multiple threads",
-        "timestamp": 22
+        "timestamp": 13
     }
     test_data_list.append(test_data)
 
