@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
       { token },
       { headers: { 'Cache-Control': 'no-store' } },
     );
-  } catch (err: any) {
-    return NextResponse.json({ error: `Token generation failed: ${err?.message || 'unknown'}` }, { status: 500 });
+  } catch (err: unknown) {
+    return NextResponse.json({ error: `Token generation failed: ${err instanceof Error ? err.message : 'unknown'}` }, { status: 500 });
   }
 }

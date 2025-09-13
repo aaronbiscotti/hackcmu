@@ -13,7 +13,7 @@ export default function ExitConfirmationModal({ isOpen, onClose, onConfirm }: Ex
     <Modal isOpen={isOpen} onClose={onClose} title="End Call">
       <div className="text-center">
         <p className="text-eel/70 mb-8">
-          Are you sure you want to end this call? You'll be taken to the post-call summary.
+          Are you sure you want to end this call? You&apos;ll be taken to the post-call summary.
         </p>
         <div className="flex gap-4">
           <button

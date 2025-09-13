@@ -54,13 +54,13 @@ export default function NewMeetingModal({ isOpen, onClose, onJoin }: NewMeetingM
           Share this code with others to join your meeting
         </p>
         
-        <div className="bg-gray-50 rounded-xl p-6 mb-6">
+        <div className="bg-gray-50 rounded-lg p-6 mb-6">
           <div className="text-4xl font-bold text-eel font-mono tracking-widest mb-4">
             {meetingCode}
           </div>
           <button
             onClick={handleCopyCode}
-            className="flex items-center gap-2 mx-auto px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors duration-200"
+            className="flex items-center gap-2 mx-auto px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md transition-colors duration-200"
           >
             {copied ? (
               <>
@@ -79,13 +79,13 @@ export default function NewMeetingModal({ isOpen, onClose, onJoin }: NewMeetingM
         <div className="space-y-4">
           <button
             onClick={handleJoinMeeting}
-            className="w-full bg-feather-green text-snow font-bold py-3 px-6 rounded-xl hover:bg-mask-green transition-colors duration-300"
+            className="w-full bg-feather-green text-snow font-medium py-3 px-6 rounded-lg hover:bg-mask-green transition-colors duration-200"
           >
             Join Meeting Now
           </button>
           <button
             onClick={onClose}
-            className="w-full bg-gray-200 text-eel font-medium py-3 px-6 rounded-xl hover:bg-gray-300 transition-colors duration-300"
+            className="w-full bg-gray-200 text-eel font-medium py-3 px-6 rounded-lg hover:bg-gray-300 transition-colors duration-200"
           >
             Share Code Later
           </button>
