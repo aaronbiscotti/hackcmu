@@ -1,3 +1,5 @@
+import logging
+
 class Buddy:
     def __init__(self):
         # List of possible states
