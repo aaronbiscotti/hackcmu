@@ -58,11 +58,11 @@ export default function FloatingUserCard({ name }: FloatingUserCardProps) {
   return (
     <div
       ref={cardRef}
-      className="fixed w-48 h-48 bg-feather-green rounded-xl flex flex-col items-center justify-center relative shadow-2xl cursor-move z-10"
+      className="fixed w-48 h-48 bg-feather-green flex flex-col items-center justify-center relative shadow-2xl cursor-move z-10"
       style={{ left: position.x, top: position.y }}
       onMouseDown={handleMouseDown}
     >
-      <div className="bg-snow rounded-full flex items-center justify-center text-eel font-bold w-20 h-20 text-2xl shadow-lg">
+      <div className="bg-snow flex items-center justify-center text-eel font-bold w-20 h-20 text-2xl shadow-lg">
         {getInitials(name)}
       </div>
       <div className="absolute bottom-3 left-3">

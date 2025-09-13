@@ -18,13 +18,13 @@ export default function ExitConfirmationModal({ isOpen, onClose, onConfirm }: Ex
         <div className="flex gap-4">
           <button
             onClick={onClose}
-            className="flex-1 bg-gray-200 text-eel font-medium py-3 px-6 rounded-xl hover:bg-gray-300 transition-colors duration-300"
+            className="flex-1 bg-gray-200 text-eel font-medium py-3 px-6 hover:bg-gray-300 transition-colors duration-300"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
-            className="flex-1 bg-red-600 text-snow font-bold py-3 px-6 rounded-xl hover:bg-red-700 transition-colors duration-300"
+            className="flex-1 bg-red-600 text-snow font-bold py-3 px-6 hover:bg-red-700 transition-colors duration-300"
           >
             End Call
           </button>

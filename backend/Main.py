@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, WebSocket, Response
+from fastapi import FastAPI, Request, WebSocket, Response, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import json
@@ -12,6 +12,8 @@ import logging
 import httpx
 from vosk import Model, KaldiRecognizer
 from dotenv import load_dotenv
+from contextlib import asynccontextmanager
+from concurrent.futures import ThreadPoolExecutor
 
 # Load environment variables from .env file
 load_dotenv()
@@ -34,7 +36,41 @@ class ProfileState(BaseModel):
     interest: float = Field(..., ge=0, le=1, description="Current interest level in the topic")
     confidence: float = Field(..., ge=0, le=1, description="Confidence in understanding of current discussion")
 
-app = FastAPI()
+# Lifespan context manager for startup and shutdown
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    global buddy, prompt_template, executor
+    print("Backend server is starting up!")
+    
+    # Initialize ThreadPoolExecutor for audio processing
+    executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="audio_processing")
+    print("ThreadPoolExecutor initialized for audio processing")
+    
+    # Load the Vosk model in the background
+    asyncio.create_task(load_vosk_model())
+    
+    try:
+        with open("prompts/base.xml", "r") as f:
+            prompt_template = f.read()
+            print("Loaded prompt template")
+    except Exception as e:
+        print(f"Error loading prompt template: {e}")
+        return
+    
+    buddy = Buddy()
+    print("Buddy initialized")
+    print("Ready to accept connections and create profiles dynamically")
+    
+    yield
+    
+    # Shutdown
+    print("Backend server is shutting down.")
+    if executor:
+        executor.shutdown(wait=True)
+        print("ThreadPoolExecutor shutdown complete")
+
+app = FastAPI(lifespan=lifespan)
 
 # Add CORS middleware to allow frontend requests
 app.add_middleware(
@@ -52,36 +88,54 @@ app.add_middleware(
 async def test_endpoint():
     return {"message": "Server updated successfully!", "timestamp": "2025-09-13-18:11"}
 
+# Status endpoint to check if Vosk model is loaded
+@app.get("/status")
+async def status_endpoint():
+    return {
+        "server": "running",
+        "vosk_model_loaded": vosk_model is not None,
+        "executor_available": executor is not None,
+        "active_sessions": len(active_sessions),
+        "profiles": len(profiles_by_name)
+    }
+
 client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 # Setup LiveKit API routes
 setup_livekit_routes(app)
 
 # Constants
-EXPECTED_PROFILES = 2
 VOSK_MODEL_PATH = "vosk-model"
 VOSK_SAMPLE_RATE = 16000
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 
 # Global variables
-profiles = []
+profiles_by_name = {}  # Dictionary to store profiles by participant identity
+active_sessions = {}   # Dictionary to store active WebSocket sessions
 buddy = None
 prompt_template = None
+vosk_model = None  # Will be loaded asynchronously
+executor = None  # ThreadPoolExecutor for audio processing
 
 # LOGGING
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load Vosk model
-vosk_model = None
-try:
-    if os.path.exists(VOSK_MODEL_PATH):
-        vosk_model = Model(VOSK_MODEL_PATH)
+# Asynchronous Vosk model loading
+async def load_vosk_model():
+    global vosk_model
+    try:
+        if not os.path.exists(VOSK_MODEL_PATH):
+            logger.warning(f"Vosk model not found at {VOSK_MODEL_PATH}")
+            return
+        
+        logger.info("Starting to load Vosk model asynchronously...")
+        # Run the model loading in a thread pool to avoid blocking
+        loop = asyncio.get_event_loop()
+        vosk_model = await loop.run_in_executor(None, Model, VOSK_MODEL_PATH)
         logger.info("Vosk model loaded successfully")
-    else:
-        logger.warning(f"Vosk model not found at {VOSK_MODEL_PATH}")
-except Exception as e:
-    logger.error(f"Failed to load Vosk model: {e}")
+    except Exception as e:
+        logger.error(f"Failed to load Vosk model: {e}")
 
 # LLM helper
 async def get_emotion_from_text(text: str, profile: Dict[str, Any]) -> str:
@@ -121,69 +175,52 @@ async def get_emotion_from_text(text: str, profile: Dict[str, Any]) -> str:
         return "speaking"
 
 # TranscriptionService factory
-def create_transcription_service():
+def create_transcription_service(profile: Profile):
     from services import TranscriptionService
     try:
-        return TranscriptionService()
+        if vosk_model is None:
+            logger.warning("Vosk model not yet loaded, transcription service will not be available")
+            return None
+        return TranscriptionService(vosk_model, VOSK_SAMPLE_RATE, process_data, profile)
     except ValueError as e:
         logger.error(f"Cannot create transcription service: {e}")
         return None
 
 # On server startup
-@app.on_event("startup")
-async def startup_event():
-    global profiles, buddy, prompt_template
-    print("Backend server is starting up!")
-
-    try:
-        with open("prompts/base.xml", "r") as f:
-            prompt_template = f.read()
-            print("Loaded prompt template")
-    except Exception as e:
-        print(f"Error loading prompt template: {e}")
-        return
-
-    profiles = [None] * EXPECTED_PROFILES
-    buddy = Buddy()
-    print("Buddy initialized")
+def get_or_create_profile(identity: str) -> Profile:
+    """Gets an existing profile or creates a new one for a user."""
+    if identity in profiles_by_name:
+        return profiles_by_name[identity]
     
-    transcription_service = create_transcription_service()
-    if transcription_service:
-        print("Voice recognition system ready")
-    else:
-        print("Voice recognition system disabled - no model found")
+    # Create a new default profile for the user
+    print(f"Creating a new default profile for user: {identity}")
+    new_profile = Profile(
+        name=identity,
+        profession="Participant",
+        memory={"initial": "First time user in this session"},
+        understanding_threshold=0.6,
+        wps=3,
+        filler_words=5,
+        interest=0.7,
+        confidence=0.6,
+        current_emotion="idle"
+    )
+    
+    profiles_by_name[identity] = new_profile
+    print(f"Profile created for: {identity}")
+    return new_profile
 
-    print(f"Waiting for {EXPECTED_PROFILES} profiles to connect...")
-    for i in range(EXPECTED_PROFILES):
-        while True:
-            try:
-                with open(f"profile{i}.json", "r") as f:
-                    data = json.load(f)
-                new_profile = Profile(
-                    name=data.get("name", f"User{len(profiles)}"),
-                    profession=data.get("profession", "Unknown"),
-                    memory=data.get("memory", {}),
-                    understanding_threshold=data.get("understanding_threshold", 0.5)
-                )
-                profiles[i] = new_profile
-                print(f"Profile {i} registered: {new_profile}")
-                break
-            except FileNotFoundError:
-                print(f"Waiting for profile {i} data...")
-                await asyncio.sleep(1)
-            except Exception as e:
-                print(f"Error loading profile {i}: {e}")
-                await asyncio.sleep(1)
-
-    print(f"All {EXPECTED_PROFILES} profiles connected.")
 
 # Process data
 async def process_data(data):
-    global profiles, buddy, prompt_template
+    global profiles_by_name, buddy, prompt_template
     print("Processing data:")
 
     profile_name, message, timestamp = parse_data(data)
-    profile = profiles[0]  # Assuming first profile is the main user
+    profile = profiles_by_name.get(profile_name)
+    if not profile:
+        print(f"Warning: Profile not found for {profile_name}")
+        return {"emotion": "speaking"}
     print(f"Loaded profile: {profile}")
 
     emotion = "speaking"
@@ -280,31 +317,82 @@ async def receive_data(request: Request):
     result = await process_data(data)
     return {"status": "success", "emotion": result["emotion"]}
 
-@app.websocket("/ws/transcribe")
-async def websocket_transcribe(websocket: WebSocket):
+@app.websocket("/ws/transcribe/{participant_identity}")
+async def websocket_transcribe(websocket: WebSocket, participant_identity: str):
     await websocket.accept()
-    print(f"Client connected for transcription: {websocket.client}")
+    print(f"Client connected for transcription: {websocket.client} (identity: {participant_identity})")
 
-    transcription_service = create_transcription_service()
+    # Get or create a profile for the connected user
+    user_profile = get_or_create_profile(participant_identity)
+
+    transcription_service = create_transcription_service(user_profile)
     if not transcription_service:
-        await websocket.send_text(json.dumps({
-            "type": "error",
-            "message": "Speech recognition service not available"
-        }))
+        if vosk_model is None:
+            await websocket.send_text(json.dumps({
+                "type": "error",
+                "message": "Speech recognition model is still loading. Please wait a moment and try again."
+            }))
+        else:
+            await websocket.send_text(json.dumps({
+                "type": "error",
+                "message": "Speech recognition service not available"
+            }))
         await websocket.close()
         return
 
+    # Store the active session
+    active_sessions[participant_identity] = transcription_service
+    print(f"Session created for {participant_identity}")
+
+    # Create a background task to send periodic pings
+    async def ping_task():
+        while True:
+            try:
+                await asyncio.sleep(10)  # Send ping every 10 seconds
+                if websocket.client_state == websocket.client_state.CONNECTED:
+                    print(f"Sending ping to {participant_identity}")
+                    await websocket.send_text(json.dumps({"type": "ping"}))
+                else:
+                    break
+            except Exception as e:
+                print(f"Ping task error for {participant_identity}: {e}")
+                break
+
+    # Start the ping task in the background
+    ping_job = asyncio.create_task(ping_task())
+
     try:
         while True:
-            data = await websocket.receive_bytes()
-            print(f"Received audio data: {len(data)} bytes")
+            try:
+                # Receive text messages (JSON format from frontend)
+                message = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+                
+                try:
+                    data = json.loads(message)
+                    if "bytes" in data:
+                        # Handle audio data from frontend
+                        audio_bytes = bytes(data["bytes"])
+                        print(f"Received audio data from {participant_identity}: {len(audio_bytes)} bytes")
+                        
+                        result = await transcription_service.process_audio(audio_bytes, executor)
+                        if result:
+                            await websocket.send_text(json.dumps(result))
+                    elif data.get('type') == 'pong':
+                        print(f"Received pong from {participant_identity}")
+                    else:
+                        print(f"Received unexpected message from {participant_identity}: {data}")
+                except json.JSONDecodeError:
+                    print(f"Invalid JSON message from {participant_identity}: {message}")
+                            
+            except asyncio.TimeoutError:
+                # Connection has been idle for too long
+                print(f"Connection timeout for {participant_identity}, closing connection")
+                break
 
-            result = await transcription_service.process_audio(data)
-            if result:
-                await websocket.send_text(json.dumps(result))
-
+    except WebSocketDisconnect:
+        print(f"Client disconnected gracefully: {websocket.client} (identity: {participant_identity})")
     except Exception as e:
-        print(f"WebSocket error: {e}")
+        print(f"WebSocket error for {participant_identity}: {e}")
         try:
             await websocket.send_text(json.dumps({
                 "type": "error",
@@ -313,7 +401,12 @@ async def websocket_transcribe(websocket: WebSocket):
         except:
             pass
     finally:
-        print(f"Client disconnected: {websocket.client}")
+        # Cancel the ping task
+        ping_job.cancel()
+        # Clean up the session
+        if participant_identity in active_sessions:
+            del active_sessions[participant_identity]
+        print(f"Client disconnected: {websocket.client} (identity: {participant_identity})")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8001)

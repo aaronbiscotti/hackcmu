@@ -29,8 +29,8 @@
   --color-eel:          #000000;
   --color-snow:         #C0C0C0;
 
-  /* Border radius scale - minimal for IE era */
-  --radius-xl: 2px;
+  /* Border radius scale - no rounded borders */
+  --radius-xl: 0px;
 
   /* Font families */
   --font-sans: 'VT323', monospace;
@@ -345,7 +345,6 @@ body {
 /* LiveKit Component Styling Overrides - Clean Style */
 .lk-prejoin {
   background-color: var(--color-snow) !important;
-  border-radius: 1rem !important;
   box-shadow: none !important;
   padding: 2rem !important;
   max-width: 450px !important;
@@ -355,7 +354,6 @@ body {
 }
 
 .lk-prejoin .lk-video-container {
-  border-radius: 1rem !important;
   overflow: hidden !important;
   background-color: #f8fafc !important;
   margin-bottom: 2rem !important;
@@ -388,7 +386,6 @@ body {
   background-color: var(--color-feather-green) !important;
   color: var(--color-snow) !important;
   border: none !important;
-  border-radius: 0.5rem !important;
   padding: 0.75rem !important;
   min-width: 48px !important;
   min-height: 48px !important;
@@ -414,7 +411,6 @@ body {
 .lk-prejoin .lk-form-control {
   background-color: #f8fafc !important;
   border: 2px solid #e2e8f0 !important;
-  border-radius: 0.875rem !important;
   padding: 1rem 1.25rem !important;
   font-size: 1rem !important;
   font-weight: 500 !important;
@@ -436,7 +432,6 @@ body {
   background-color: var(--color-feather-green) !important;
   color: var(--color-snow) !important;
   border: none !important;
-  border-radius: 0.5rem !important;
   padding: 0.75rem 1.5rem !important;
   font-size: 1rem !important;
   font-weight: 500 !important;
@@ -476,7 +471,6 @@ body {
 }
 
 .lk-participant-tile {
-  border-radius: 1rem !important;
   overflow: hidden !important;
   background-color: #374151 !important;
 }
@@ -492,7 +486,6 @@ div[data-lk-local-participant="true"] video {
 .lk-participant-name {
   background-color: rgba(75, 75, 75, 0.9) !important;
   color: var(--color-snow) !important;
-  border-radius: 0.25rem !important;
   padding: 0.25rem 0.5rem !important;
   font-weight: 500 !important;
 }
@@ -516,18 +509,15 @@ div[data-lk-local-participant="true"] video {
 .lk-chat {
   background-color: rgba(255, 255, 255, 0.95) !important;
   backdrop-filter: blur(8px) !important;
-  border-radius: 1rem !important;
   border: none !important;
 }
 
 .lk-chat-entry {
-  border-radius: 0.75rem !important;
   margin-bottom: 0.5rem !important;
 }
 
 .lk-chat-entry-input {
   border: 2px solid #e5e7eb !important;
-  border-radius: 0.75rem !important;
   padding: 0.75rem !important;
   background-color: white !important;
 }
@@ -541,7 +531,6 @@ div[data-lk-local-participant="true"] video {
 /* Settings menu styling */
 .lk-settings-menu {
   background-color: var(--color-snow) !important;
-  border-radius: 0.5rem !important;
   color: var(--color-eel) !important;
   border: 1px solid #e5e7eb !important;
   box-shadow: none !important;
@@ -550,7 +539,6 @@ div[data-lk-local-participant="true"] video {
 .lk-settings-menu .lk-button {
   background-color: var(--color-feather-green) !important;
   color: var(--color-snow) !important;
-  border-radius: 0.5rem !important;
   border: none !important;
 }
 
@@ -568,12 +556,10 @@ div[data-lk-local-participant="true"] video {
 }
 
 .lk-participant-tile video {
-  border-radius: 1rem !important;
 }
 
 .lk-participant-placeholder {
   background-color: #374151 !important;
-  border-radius: 1rem !important;
   color: var(--color-snow) !important;
 }
 
@@ -585,20 +571,17 @@ div[data-lk-local-participant="true"] video {
 }
 
 .lk-focus-layout .lk-focused-stage {
-  border-radius: 1rem !important;
   overflow: hidden !important;
 }
 
 .lk-focus-layout .lk-carousel {
   background-color: rgba(75, 75, 75, 0.5) !important;
-  border-radius: 1rem !important;
 }
 
 /* Floating elements */
 .lk-toast {
   background-color: var(--color-snow) !important;
   color: var(--color-eel) !important;
-  border-radius: 0.375rem !important;
   box-shadow: none !important;
   border: 1px solid #e5e7eb !important;
 }
@@ -606,18 +589,15 @@ div[data-lk-local-participant="true"] video {
 /* Media device menu */
 .lk-media-device-menu {
   background-color: var(--color-snow) !important;
-  border-radius: 0.375rem !important;
   border: 1px solid #e5e7eb !important;
   box-shadow: none !important;
 }
 
 .lk-media-device-menu .lk-list {
-  border-radius: 0.5rem !important;
 }
 
 .lk-media-device-menu .lk-list-item {
   color: var(--color-eel) !important;
-  border-radius: 0.5rem !important;
   margin: 0.25rem !important;
 }
 
@@ -633,7 +613,6 @@ div[data-lk-local-participant="true"] video {
 /* Connection quality indicator */
 .lk-connection-quality {
   background-color: rgba(0, 0, 0, 0.7) !important;
-  border-radius: 0.5rem !important;
   color: var(--color-snow) !important;
 }
 
@@ -647,7 +626,6 @@ div[data-lk-local-participant="true"] video {
 .lk-toolbar {
   background-color: rgba(75, 75, 75, 0.95) !important;
   backdrop-filter: blur(8px) !important;
-  border-radius: 1.5rem !important;
   padding: 0.75rem !important;
 }
 
@@ -659,7 +637,6 @@ div[data-lk-local-participant="true"] video {
 
 .lk-modal {
   background-color: var(--color-snow) !important;
-  border-radius: 0.5rem !important;
   color: var(--color-eel) !important;
   box-shadow: none !important;
   border: 1px solid #e5e7eb !important;
@@ -684,7 +661,6 @@ div[data-lk-local-participant="true"] video {
 .lk-input {
   background-color: #f9fafb !important;
   border: 2px solid #e5e7eb !important;
-  border-radius: 0.75rem !important;
   padding: 0.75rem 1rem !important;
   font-family: var(--font-sans) !important;
   color: var(--color-eel) !important;
