@@ -31,7 +31,7 @@ export default function TimeDisplay() {
 
   return (
     <div className="text-right text-eel">
-      <div className="text-lg font-normal flex items-center justify-end gap-2">
+      <div className="text-sm flex items-center justify-end gap-2">
         <span>{formatTime(currentTime)}</span>
         <span>•</span>
         <span>{formatDate(currentTime)}</span>

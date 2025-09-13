@@ -1,20 +1,41 @@
-@import url('https://fonts.googleapis.com/css2?family=Madimi+One&family=Outfit:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
 @import "tailwindcss";
+
 
 /* Base tokens and utilities */
 @theme {
-  /* Colors */
+  /* 90s Netscape Colors */
+  --color-cod-gray: #111;
+  --color-seashell: #f1f1f1;
+  --color-silver: #ccc;
+  --color-white: #fff;
+  --color-gallery: #eee;
+  --color-mercury: #e6e6e6;
+  --color-shalimar: #fff9c0;
+  --color-jelly-bean: #21759b;
+  --color-dove-gray: #666;
+  --color-royal-blue: #4169e1;
+  --color-fresh-eggplant: #800080;
+  --color-lucky-point: #191970;
+  --color-tundora: #404040;
+  --color-black: #000;
+
+  --c-background-button-netscape: var(--color-silver);
+  --c-link: blue;
+
+  /* Legacy colors for compatibility */
   --color-feather-green: #58CC02;
   --color-mask-green:   #89E219;
-  --color-eel:          #4B4B4B;
-  --color-snow:         #FFFFFF;
+  --color-eel:          #000000;
+  --color-snow:         #C0C0C0;
 
-  /* Border radius scale (rounded-xl will use this) */
-  --radius-xl: 1rem;
+  /* Border radius scale - minimal for IE era */
+  --radius-xl: 2px;
 
   /* Font families */
-  --font-sans: 'Outfit', system-ui, -apple-system, sans-serif;
-  --font-display: 'Madimi One', cursive;
+  --font-sans: 'VT323', monospace;
+  --font-display: Arial, sans-serif;
+  --font-mono: 'VT323', monospace;
 }
 
 /* Optional: if referencing other CSS variables, use @theme inline */
@@ -23,12 +44,69 @@
   /* --font-sans: var(--font-geist-sans); */
 }
 
-/* Global body styling (optional: can also apply via utilities on <body/>) */
-body {
-  background-color: var(--color-snow);   /* bg-snow - WHITE */
-  color:            var(--color-eel);    /* text-eel - DARK TEXT */
-  font-family: var(--font-sans);
+/* Global styling - Base fonts and colors */
+body, p, div, span, input, button, label {
+  font-family: 'VT323', monospace !important;
+  font-weight: normal !important;
+  font-size: 12px;
 }
+
+/* Only h1 and h3 use Arial - let Tailwind handle sizing */
+h1, h3, .font-display {
+  font-family: Arial, sans-serif !important;
+  font-weight: normal !important;
+  color: #000000 !important;
+}
+
+/* Other headings use VT323 */
+h2, h4, h5, h6 {
+  font-family: 'VT323', monospace !important;
+  font-weight: normal !important;
+  color: #000000 !important;
+}
+
+/* Links are blue */
+a {
+  color: #0000EE !important;
+  text-decoration: underline;
+}
+
+/* Text colors - black instead of green */
+.text-feather-green {
+  color: #000000 !important;
+}
+
+/* Global body styling */
+body {
+  background-color: var(--color-win-gray);
+  background-image: url('/background.jpg');
+  background-position: center center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  color: var(--color-win-text);
+  font-family: 'VT323', monospace;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Overlay card and planet peek helpers */
+.overlay-root {
+  display: flex;
+  min-height: 100vh;
+}
+
+.overlay-card {
+  position: relative;
+  background: white;
+  margin: 2rem;
+  border-radius: 0;
+  box-shadow: none;
+  border: 2px solid #d2d2d2;
+  height: calc(100vh - 4rem);
+  overflow: hidden;
+}
+
 
 @keyframes shrink-width {
   from {
@@ -81,6 +159,187 @@ body {
 .animate-modal-out {
   animation: modal-out 250ms ease-in forwards;
   transform-origin: center;
+}
+
+/* 90s Netscape Button Styles */
+.button--netscape {
+  align-items: center;
+  background: var(--c-background-button-netscape);
+  border-color: var(--color-gallery) var(--color-cod-gray) var(--color-cod-gray) var(--color-gallery);
+  border-radius: 0;
+  border-width: 2px;
+  border-style: solid;
+  cursor: pointer;
+  display: inline-flex;
+  font-family: "Times New Roman", serif;
+  font-weight: 700;
+  min-height: 31px;
+  min-width: 88px;
+  padding: 2px 4px 2px 2px;
+  position: relative;
+  white-space: nowrap;
+  zoom: 1.5;
+  font-size: 12px;
+}
+
+.button--netscape:hover,
+.button--netscape:focus {
+  outline: 1px dotted var(--c-link);
+}
+
+.button--netscape:active {
+  border-color: var(--color-cod-gray) transparent transparent var(--color-cod-gray);
+  padding: 4px 2px 0px 4px;
+}
+
+.button--netscape::before {
+  align-items: center;
+  background: var(--color-royal-blue);
+  content: "😀";
+  display: flex;
+  flex: 0 0 24px;
+  font-size: 14px;
+  height: 23px;
+  justify-content: center;
+  line-height: 0;
+  margin-right: 4px;
+  overflow: hidden;
+  padding-top: 2px;
+  width: 24px;
+}
+
+.button--theme::before {
+  background: var(--color-cod-gray);
+  content: "💡";
+  text-shadow: 0 0 4px #FF6;
+}
+
+.button--dark {
+  background: var(--color-cod-gray);
+  color: red;
+  border-top-color: var(--color-cod-gray);
+  border-left-color: var(--color-cod-gray);
+}
+
+.button--dark::before {
+  background: #660000;
+  content: "🎃";
+  text-shadow: 0 0 4px black;
+}
+
+.button--text {
+  font-size: 10px;
+}
+
+.button--text em {
+  color: red;
+  font-family: cursive;
+  display: block;
+  font-weight: bold;
+  font-size: 20px;
+  line-height: 1;
+  padding: 0 4px 0 2px;
+}
+
+.button--text::before {
+  background: #006633;
+  content: "💸";
+  text-shadow: 0 0 9px yellow;
+}
+
+.button--letter {
+  font-size: 20px;
+  line-height: 1;
+  font-weight: bold;
+  color: white;
+  text-shadow: 1px 1px #000000;
+  font-style: italic;
+}
+
+.button--letter::before {
+  background: #003366;
+  content: "🌎";
+  text-shadow: 0 0 3px hsla(0deg, 0%, 100%, 0.5);
+  font-style: normal;
+}
+
+/* 90s Style Input */
+.input--netscape {
+  background: white;
+  border: 2px inset var(--color-silver);
+  border-radius: 0;
+  padding: 4px 6px;
+  font-family: 'Minecraft Standard', monospace;
+  font-size: 12px;
+  color: black;
+  width: 200px;
+}
+
+.input--netscape:focus {
+  outline: 1px dotted var(--c-link);
+  outline-offset: -3px;
+}
+
+/* Y2K Window/Dialog Styles */
+.win-dialog {
+  background: var(--color-win-gray);
+  border: 2px outset #C0C0C0;
+  box-shadow: 2px 2px 4px rgba(0,0,0,0.25);
+  font-family: var(--font-sans);
+  font-size: 11px;
+}
+
+.win-titlebar {
+  background: linear-gradient(90deg, #0078D4 0%, #1088E4 50%, #0078D4 100%);
+  color: white;
+  padding: 2px 4px;
+  font-weight: bold;
+  font-size: 11px;
+  border-bottom: 1px solid #004A8C;
+}
+
+.win-content {
+  padding: 8px;
+  background: var(--color-win-gray);
+}
+
+/* Y2K Form Elements */
+.win-input {
+  background: white;
+  border: 2px inset #C0C0C0;
+  padding: 2px 4px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--color-win-text);
+}
+
+.win-input:focus {
+  outline: 1px dotted #000000;
+  outline-offset: -3px;
+}
+
+/* Y2K Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-win-gray);
+  border: 1px inset #C0C0C0;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #FFFFFF 0%, #F0F0F0 30%, #C0C0C0 70%, #808080 100%);
+  border: 1px outset #C0C0C0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #FFFFFF 0%, #F8F8F8 30%, #E0E0E0 70%, #A0A0A0 100%);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--color-win-gray);
 }
 
 /* LiveKit Component Styling Overrides - Clean Style */

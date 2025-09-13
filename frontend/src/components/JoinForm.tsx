@@ -46,31 +46,44 @@ export default function JoinForm({ onJoin }: JoinFormProps) {
 
   return (
     <>
-      <form onSubmit={handleSubmit} className="space-y-4 w-full">
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={handleNewMeeting}
-            className="bg-feather-green text-snow p-4 rounded-lg hover:bg-mask-green transition-colors duration-200 flex items-center gap-2 px-6"
-          >
-            <VideoCameraIcon className="h-5 w-5" />
-            New Meeting
-          </button>
+      <form onSubmit={handleSubmit} style={{ marginTop: '1rem' }}>
+        <div style={{ marginBottom: '1.5rem' }}>
           <input
             type="text"
             value={code}
             onChange={(e) => setCode(e.target.value)}
             placeholder="Enter meeting code"
-            className="flex-1 px-6 py-4 bg-gray-100 text-eel placeholder-eel/50 border border-gray-200 rounded-lg focus:outline-none focus:border-feather-green"
+            style={{ 
+              width: '350px', 
+              marginBottom: '1rem', 
+              fontSize: '18px', 
+              padding: '12px 16px',
+              height: '50px'
+            }}
           />
+        </div>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <button
+            type="button"
+            onClick={handleNewMeeting}
+            style={{
+              padding: '12px 20px',
+              fontSize: '16px',
+              minWidth: '140px',
+              height: '50px'
+            }}
+          >
+            New Meeting
+          </button>
           <button
             type="submit"
             disabled={!isActive}
-            className={`px-8 py-4 font-medium rounded-lg transition-colors duration-200 ${
-              isActive
-                ? 'bg-feather-green text-snow hover:bg-mask-green cursor-pointer'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            }`}
+            style={{
+              padding: '12px 20px',
+              fontSize: '16px',
+              minWidth: '100px',
+              height: '50px'
+            }}
           >
             Join
           </button>
