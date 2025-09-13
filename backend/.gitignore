@@ -196,3 +196,81 @@ secrets.json
 # Backup files
 *.bak
 *.backup
+
+# Vosk models (large files)
+models/
+vosk-model*/
+*.zip
+
+# Audio files (can be large)
+*.wav
+*.mp3
+*.flac
+*.ogg
+*.m4a
+*.aac
+
+# Profile data files (potentially sensitive user data)
+profile*.json
+user_profiles/
+session_data/
+
+# Runtime generated files
+*.pid
+*.lock
+
+# OS-specific files
+.DS_Store*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Editor/IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+
+# Testing artifacts
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Documentation build
+docs/_build/
+site/
+
+# Local configuration overrides
+local_settings.py
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Large data files
+data/
+datasets/
+*.csv
+*.json.gz
+*.parquet
+
+# Machine learning models (besides Vosk)
+*.pkl
+*.joblib
+*.h5
+*.pt
+*.pth
+*.onnx
+
+# Temporary processing files
+temp/
+tmp/
+processing/
+output/

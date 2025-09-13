@@ -49,4 +49,6 @@ types-protobuf==6.30.2.20250822
 typing_extensions==4.15.0
 urllib3==2.5.0
 uvicorn==0.24.0
+vosk
+websockets
 yarl==1.20.1

@@ -13,6 +13,7 @@ import {
 import ParticipantTile from './ParticipantTile';
 import ExitConfirmationModal from './ExitConfirmationModal';
 import CustomPreJoin from './CustomPreJoin';
+import LiveAssistant from './LiveAssistant';
 import {
   RoomOptions,
   VideoCodec,
@@ -164,6 +165,7 @@ function VideoConferenceComponent(props: {
     <div className="bg-snow h-screen flex flex-col overflow-hidden">
       <RoomContext.Provider value={room}>
         <KeyboardShortcuts />
+        <LiveAssistant room={room} />
         <CustomVideoConference onEndCall={props.onEndCall} />
       </RoomContext.Provider>
     </div>

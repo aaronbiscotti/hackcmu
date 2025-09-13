@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import json
@@ -17,6 +17,7 @@ load_dotenv()
 import Profiles
 import Buddy
 from livekit_api import setup_livekit_routes
+from live_transcription import load_vosk_model, handle_transcription_websocket
 
 # Pydantic model for structured output
 class ProfileState(BaseModel):
@@ -72,7 +73,14 @@ async def startup_event():
     buddy = Buddy.Buddy()
     print("Buddy initialized")
     
-    # Step 3: Wait for profiles to connect (simulate by reading from profile.json)
+    # Step 3: Load Vosk model for speech recognition
+    vosk_loaded = load_vosk_model()
+    if vosk_loaded:
+        print("Voice recognition system ready")
+    else:
+        print("Voice recognition system disabled - no model found")
+
+    # Step 4: Wait for profiles to connect (simulate by reading from profile.json)
     print(f"Waiting for {EXPECTED_PROFILES} profiles to connect...")
     for i in range(EXPECTED_PROFILES):
         while True:
@@ -189,6 +197,11 @@ async def receive_data(request: Request):
     print("Data received:", data)
     process_data(data)
     return {"status": "success"}
+
+# WebSocket endpoint for live transcription
+@app.websocket("/ws/transcribe")
+async def websocket_transcribe(websocket: WebSocket):
+    await handle_transcription_websocket(websocket)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8001)
