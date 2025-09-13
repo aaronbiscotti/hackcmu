@@ -48,7 +48,7 @@ export const CallScreen = ({ roomName, participantName, backendUrl, meetingCode,
           `${effectiveBackendUrl}/api/connection-details?roomName=${effectiveRoomName}&participantName=${effectiveParticipantName}`
         );
         const data = await resp.json();
-        setToken(data.token);
+        setToken(data.participantToken);
       } catch (e) {
         console.error('Error fetching connection details:', e);
       }
