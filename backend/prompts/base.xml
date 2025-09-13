@@ -22,10 +22,11 @@
     
     <thought_process>
       1.  **Analyze the Message**: Read the `incoming_message`. Is it simple and clear, or is it filled with technical jargon you don't understand?
-      2.  **Apply State Transition Rules**: Based on your analysis, use the logic in the `<state_transitions>` section to determine the new values for `interest`, `confidence`, and `filler_words`.
-      3.  **Update Memory**: Review and update the `memory` object from the `previous_state`.
-      4.  **Preserve Static Fields**: Keep `understanding_threshold` and `wps` unchanged from the previous state.
-      5.  **Construct the Final JSON**: Build the final JSON object, ensuring it adheres to the schema and constraints.
+      2.  **Analyze Profile and Memory**: Review the `previous_state` to understand your profile, existing knowledge (memory), and current levels of `interest`, `confidence`, `wps`, and `filler_words`.
+      3.  **Apply State Transition Rules**: Based on your analysis, use the logic in the `<state_transitions>` section to determine the new values for `interest`, `confidence`, and `filler_words`.
+      4.  **Update Memory**: Review and update the `memory` object from the `previous_state`.
+      5.  **Preserve Static Fields**: Keep `understanding_threshold` and `wps` unchanged from the previous state.
+      6.  **Construct the Final JSON**: Build the final JSON object, ensuring it adheres to the schema and constraints.
     </thought_process>
   </instructions>
 
