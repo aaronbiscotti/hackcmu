@@ -19,8 +19,8 @@ from concurrent.futures import ThreadPoolExecutor
 load_dotenv()
 
 # Import other python files
-from Profiles import Profile
-from Buddy import Buddy
+from profiles import Profile
+from buddy import Buddy
 from livekit_api import setup_livekit_routes
 
 
