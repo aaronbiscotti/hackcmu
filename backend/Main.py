@@ -17,7 +17,7 @@ load_dotenv()
 from profiles import Profile
 from buddy import Buddy
 from livekit_api import setup_livekit_routes
-from services import create_transcription_service
+from services import create_transcription_service, get_emotion_from_text
 
 # Pydantic model for structured output
 class ProfileState(BaseModel):
@@ -40,7 +40,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-client = anthropic.Anthropic(api_key="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")
+client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 # Setup LiveKit API routes
 setup_livekit_routes(app)
@@ -93,10 +93,9 @@ async def startup_event():
                     memory=data.get("memory", {}),
                     understanding_threshold=data.get("understanding_threshold", 0.5)
                 )
-                profiles[i] = new_profile  # Use index instead of append since we initialized with [None] * EXPECTED_PROFILES
+                profiles[i] = new_profile
                 print(f"Profile {i} registered: {new_profile}")
-
-                break  # Exit the while loop once profile is loaded
+                break
             except FileNotFoundError:
                 print(f"Waiting for profile {i} data...")
                 await asyncio.sleep(1)
@@ -106,18 +105,17 @@ async def startup_event():
 
     print(f"All {EXPECTED_PROFILES} profiles connected.")
 
-# Process incoming data, update profiles, and have buddy react
-def process_data(data):
+# Process incoming data, update profiles, and compute emotion
+async def process_data(data):
     global profiles, buddy, prompt_template
     print("Processing data:")
-    
-    # Parse data into variables
+
     profile_name, message, timestamp = parse_data(data)
-    
-    # Process main user's profile
-    profile = profiles[0] # Assuming first profile is the main user
+    profile = profiles[0]  # Assuming first profile is the main user
+
+    emotion = "speaking"
     if profile is not None and prompt_template:
-        # Calculate WPS if we have previous data
+        # Calculate WPS
         if profile.last_timestamp is not None and profile.last_message is not None:
             time_diff = timestamp - profile.last_timestamp
             if time_diff > 0:
@@ -126,11 +124,9 @@ def process_data(data):
                 profile.wps = round(words_per_second)
                 print(f"Calculated WPS: {profile.wps}")
 
-        # Store current message and timestamp for next calculation
         profile.last_message = message
         profile.last_timestamp = timestamp
 
-        # Get current state for LLM
         previous_state = {
             "name": profile_name,
             "profession": profile.profession,
@@ -138,26 +134,23 @@ def process_data(data):
             "understanding_threshold": profile.understanding_threshold,
             "filler_words": profile.filler_words,
             "interest": profile.interest,
-            "confidence": profile.confidence
+            "confidence": profile.confidence,
+            "current_emotion": profile.current_emotion
         }
-        
-        # Format prompt with dynamic inputs
+
         formatted_prompt = prompt_template.replace("{{frontend_message}}", str(message))
         formatted_prompt = formatted_prompt.replace("{{previous_state_json}}", json.dumps(previous_state, indent=2))
-        
+
         try:
-            # Use direct Anthropic API for now (TODO: Fix instructor integration)
             response = client.messages.create(
                 model="claude-3-7-sonnet-20250219",
                 max_tokens=1000,
                 messages=[{"role": "user", "content": formatted_prompt}]
             )
-            
-            # For now, just parse the response text manually (TODO: Use structured output)
+
             response_text = response.content[0].text
             print(f"Raw response: {response_text}")
-            
-            # Create a minimal updated state (TODO: Parse structured response)
+
             updated_state = ProfileState(
                 profession=profile.profession,
                 memory=profile.memory,
@@ -168,44 +161,44 @@ def process_data(data):
                 confidence=profile.confidence
             )
 
-            # Update profile with new state (keeping our calculated WPS)
+            # Update profile
             profile.profession = updated_state.profession
             profile.memory = updated_state.memory
             profile.understanding_threshold = updated_state.understanding_threshold
-            profile.wps = updated_state.wps 
+            profile.wps = updated_state.wps
             profile.filler_words = updated_state.filler_words
             profile.interest = updated_state.interest
             profile.confidence = updated_state.confidence
-            
-            print(f"Updated user profile state:", profile)
-            
+
+            # Emotion decision with profile context
+            emotion = await get_emotion_from_text(message, previous_state)
+            profile.current_emotion = emotion
+
+            print(f"Updated user profile state: {profile}")
+
         except Exception as e:
             print(f"Error processing user profile: {e}")
-    
-    return
 
-# Parses incoming data
+    return {"emotion": emotion}
+
 def parse_data(data):
     profile_name = data.get("profile_name")
     message = data.get("message", "")
     timestamp = data.get("timestamp", 0)
     return profile_name, message, timestamp
 
-# Endpoint to receive data
 @app.post("/process")
 async def receive_data(request: Request):
     data = await request.json()
     print("Data received:", data)
-    process_data(data)
-    return {"status": "success"}
+    result = await process_data(data)
+    return {"status": "success", "emotion": result["emotion"]}
 
-# WebSocket endpoint for live transcription
 @app.websocket("/ws/transcribe")
 async def websocket_transcribe(websocket: WebSocket):
     await websocket.accept()
     print(f"Client connected for transcription: {websocket.client}")
 
-    # Create a new transcription service for this connection
     transcription_service = create_transcription_service()
     if not transcription_service:
         await websocket.send_text(json.dumps({
@@ -217,13 +210,10 @@ async def websocket_transcribe(websocket: WebSocket):
 
     try:
         while True:
-            # Receive audio data
             data = await websocket.receive_bytes()
             print(f"Received audio data: {len(data)} bytes")
 
-            # Process audio with the service
             result = await transcription_service.process_audio(data)
-
             if result:
                 await websocket.send_text(json.dumps(result))
 
@@ -235,7 +225,7 @@ async def websocket_transcribe(websocket: WebSocket):
                 "message": f"Connection error: {str(e)}"
             }))
         except:
-            pass  # Connection might already be closed
+            pass
     finally:
         print(f"Client disconnected: {websocket.client}")
 

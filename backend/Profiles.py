@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import Dict
 
 class Profile:
     # All floats are on a Scale of 0 to 1 (1 high, 0 low)
@@ -11,7 +11,8 @@ class Profile:
         wps: int = 3,
         filler_words: int = 8,
         interest: float = 0.6,
-        confidence: float = 0.5
+        confidence: float = 0.5,
+        current_emotion: str = "idle"
     ):
         self.name = name
         self.profession = profession
@@ -24,6 +25,7 @@ class Profile:
         # Add new tracking variables
         self.last_timestamp = None
         self.last_message = None
+        self.current_emotion = current_emotion
 
     def __repr__(self):
         return (
@@ -34,5 +36,6 @@ class Profile:
             f"wps={self.wps!r}, "
             f"filler_words={self.filler_words!r}, "
             f"interest={self.interest!r}, "
-            f"confidence={self.confidence!r}"
+            f"confidence={self.confidence!r}, "
+            f"current_emotion={self.current_emotion!r}"
         )

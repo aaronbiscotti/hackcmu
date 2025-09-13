@@ -9,11 +9,13 @@ import httpx
 import os
 from dotenv import load_dotenv
 
+from main import process_data
+
 load_dotenv()
 
 VOSK_MODEL_PATH = "vosk-model"
 VOSK_SAMPLE_RATE = 16000
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "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")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 
 # LOGGING
@@ -30,7 +32,7 @@ try:
 except Exception as e:
     logger.error(f"Failed to load Vosk model: {e}")
 
-# helpers, not necessarily needed - llm can discern
+# helpers
 FILLER_WORDS = {"um", "uh", "like", "so", "you know", "actually", "basically", "literally", "well", "right"}
 
 class SessionMetrics:
@@ -41,35 +43,31 @@ class SessionMetrics:
         self.sentences = []
 
     def add_transcript(self, text: str):
-        """Add a new transcript and update metrics"""
         words = text.lower().split()
         self.word_count += len(words)
         self.sentences.append(text)
 
-        # Count filler words
         for word in words:
             cleaned_word = word.strip('.,!?')
             if cleaned_word in FILLER_WORDS:
                 self.filler_count += 1
 
     def get_wpm(self) -> int:
-        """Calculate words per minute"""
         elapsed_minutes = (time.time() - self.start_time) / 60
         if elapsed_minutes == 0:
             return 0
         return round(self.word_count / elapsed_minutes)
 
     def get_clarity_score(self) -> int:
-        """Calculate clarity score (100 - filler word percentage)"""
         if self.word_count == 0:
             return 100
         filler_ratio = self.filler_count / self.word_count
         return max(0, round(100 - (filler_ratio * 100)))
 
 # LLM
-async def get_emotion_from_text(text: str) -> str:
+async def get_emotion_from_text(text: str, profile: Dict[str, Any]) -> str:
     """
-    Sends text to Anthropic's API to get an emotion analysis.
+    Sends text + profile context to Anthropic's API to get an emotion analysis.
     """
     if not text.strip():
         return "idle"
@@ -80,15 +78,12 @@ async def get_emotion_from_text(text: str) -> str:
         "content-type": "application/json"
     }
 
-    # LLM should give a single word answer for this part
+    profile_context = json.dumps(profile, indent=2)
     prompt = (
-        "Analyze the emotion and content of the following speech text and respond with a single word from this list: "
-        "idle, question, nodding, shaking_head, excited, thinking, confused, speaking. "
-        "Choose based on the content and emotional tone. If it's a question, return 'question'. "
-        "If it shows agreement, return 'nodding'. If disagreement, return 'shaking_head'. "
-        "If enthusiastic/positive, return 'excited'. If contemplative, return 'thinking'. "
-        "If shows confusion, return 'confused'. Otherwise return 'speaking'.\n\n"
-        f"Text: '{text}'\n\nEmotion:"
+        "Analyze the emotion of the following speech given the user's profile and memory.\n\n"
+        f"Profile:\n{profile_context}\n\n"
+        f"Text: '{text}'\n\n"
+        "Respond with one word only from: idle, question, nodding, shaking_head, excited, thinking, confused, speaking."
     )
 
     payload = {
@@ -103,7 +98,7 @@ async def get_emotion_from_text(text: str) -> str:
             response.raise_for_status()
             result = response.json()
             emotion = result.get('content', [{}])[0].get('text', 'speaking').strip().lower()
-            logger.info(f"LLM emotion analysis: '{text}' -> '{emotion}'")
+            logger.info(f"LLM emotion analysis: '{text}' with profile -> '{emotion}'")
             return emotion
     except httpx.RequestError as e:
         logger.error(f"Error calling Anthropic API: {e}")
@@ -123,39 +118,43 @@ class TranscriptionService:
 
     async def process_audio(self, data: bytes) -> Optional[Dict[str, Any]]:
         """
-        Processes a chunk of audio and returns the final transcript if available.
+        Processes a chunk of audio and returns transcript + processed profile emotion.
         """
         try:
-            # Run blocking Vosk code in a separate thread to avoid blocking the event loop
             accept_result = await asyncio.to_thread(self.recognizer.AcceptWaveform, data)
 
             if accept_result:
-                # Final result
                 result = json.loads(self.recognizer.Result())
                 if result.get('text'):
                     text = result['text']
                     logger.info(f"Final transcript: '{text}'")
 
-                    # Update metrics
                     self.metrics.add_transcript(text)
 
-                    # Get emotion analysis from LLM
-                    emotion = await get_emotion_from_text(text)
-
-                    return {
-                        "type": "final",
-                        "transcript": text,
-                        "animation_trigger": emotion,
+                    # Build data packet to feed into process_data
+                    data_packet = {
+                        "profile_name": "User0",
+                        "message": text,
+                        "timestamp": time.time(),
                         "metrics": {
                             "wpm": self.metrics.get_wpm(),
                             "filler_words": self.metrics.filler_count,
                             "clarity_score": self.metrics.get_clarity_score(),
                             "word_count": self.metrics.word_count
-                        },
-                        "timestamp": time.time()
+                        }
+                    }
+
+                    processed = await process_data(data_packet)
+
+                    return {
+                        "type": "final",
+                        "transcript": text,
+                        "animation_trigger": processed.get("emotion", "speaking"),
+                        "metrics": data_packet["metrics"],
+                        "timestamp": data_packet["timestamp"],
+                        "current_emotion": processed.get("emotion", "speaking")  # <── ADDED
                     }
             else:
-                # Partial result
                 partial_result = json.loads(self.recognizer.PartialResult())
                 if partial_result.get('partial'):
                     partial_text = partial_result['partial']
@@ -176,7 +175,6 @@ class TranscriptionService:
         return None
 
 def create_transcription_service() -> Optional[TranscriptionService]:
-    """Factory function to create a transcription service"""
     try:
         return TranscriptionService()
     except ValueError as e:
