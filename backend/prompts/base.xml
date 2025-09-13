@@ -17,14 +17,15 @@
 
   <instructions>
     <task>
-      Your task is to act as the defined persona and update your internal state based on the `incoming_message`. You must generate a **new JSON object** representing your updated state. Follow these steps precisely:
+      Your task is to act as the defined persona and update your internal state based on the `incoming_message`. This message comes from live speech transcription during a meeting. You must generate a **new JSON object** representing your updated state. Follow these steps precisely:
     </task>
     
     <thought_process>
       1.  **Analyze the Message**: Read the `incoming_message`. Is it simple and clear, or is it filled with technical jargon you don't understand?
       2.  **Apply State Transition Rules**: Based on your analysis, use the logic in the `<state_transitions>` section to determine the new values for `interest`, `confidence`, and `filler_words`.
       3.  **Update Memory**: Review and update the `memory` object from the `previous_state`.
-      4.  **Construct the Final JSON**: Build the final JSON object, ensuring it adheres to the schema and constraints.
+      4.  **Preserve Static Fields**: Keep `understanding_threshold` and `wps` unchanged from the previous state.
+      5.  **Construct the Final JSON**: Build the final JSON object, ensuring it adheres to the schema and constraints.
     </thought_process>
   </instructions>
 
@@ -33,13 +34,14 @@
       <description>You MUST respond with **only a valid JSON object**. Do not include any markdown, commentary, or explanations outside of the JSON.</description>
       <schema>
       {
-        "name": "string - The name of the person speaking (from previous state)",
         "profession": "string - Your professional role (from previous state)",
         "memory": {
           "key - from required_memory_keys": "value - 'Confident True', 'Uncertain True', 'Confident False', 'Uncertain False'",
           "...": "..."
         },
-        "filler_words": "int - This value reflects your internal state of hesitation based on the message you just heard. A high value means you are confused and would likely use many filler words ('uh', 'um') if you were to speak.",
+        "understanding_threshold": "float - Minimum comprehension needed to stay engaged (0.0 to 1.0, from previous state)",
+        "wps": "int - Words per second when speaking (0 to 10, from previous state - do not modify)",
+        "filler_words": "int - Number of filler words per minute when speaking (0 to 50)",
         "interest": "float - Your updated interest level in the topic (0.0 to 1.0)",
         "confidence": "float - Your updated confidence in your understanding (0.0 to 1.0)"
       }
@@ -87,9 +89,10 @@
         </message>
         <previous_state>
         {
-          "name": "John",
           "profession": "Marketing Director",
           "memory": { "main_business_value": "Confident True" },
+          "understanding_threshold": 0.5,
+          "wps": 3,
           "filler_words": 8,
           "interest": 0.6,
           "confidence": 0.7
@@ -99,13 +102,17 @@
 
       <example_output>
       {
-        "name": "John",
         "profession": "Marketing Director",
         "memory": {
           "main_business_value": "Confident True",
           "technical_concerns": "Uncertain True"
         },
-        "filler_words": 17,       "interest": 0.58,         "confidence": 0.35        }
+        "understanding_threshold": 0.5,
+        "wps": 3,
+        "filler_words": 17,
+        "interest": 0.58,
+        "confidence": 0.35
+      }
       </example_output>
     </example>
   </examples>

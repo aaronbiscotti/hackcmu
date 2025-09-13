@@ -94,13 +94,8 @@ def setup_livekit_routes(app: FastAPI):
             # Get LiveKit server URL with optional region
             livekit_server_url = get_livekit_url(livekit_url, region) if region else livekit_url
 
-            # Get or generate random participant postfix
-            random_participant_postfix = request.cookies.get(COOKIE_KEY)
-            if not random_participant_postfix:
-                random_participant_postfix = random_string(4)
-
-            # Generate participant token
-            participant_identity = f"{participantName}__{random_participant_postfix}"
+            # Use participant name directly as identity
+            participant_identity = participantName
             participant_token = create_participant_token(
                 identity=participant_identity,
                 name=participantName,
@@ -108,15 +103,6 @@ def setup_livekit_routes(app: FastAPI):
                 room_name=roomName
             )
 
-            # Set cookie
-            response.set_cookie(
-                key=COOKIE_KEY,
-                value=random_participant_postfix,
-                httponly=True,
-                secure=True,
-                samesite="strict",
-                expires=get_cookie_expiration_time()
-            )
 
             return ConnectionDetails(
                 serverUrl=livekit_server_url,

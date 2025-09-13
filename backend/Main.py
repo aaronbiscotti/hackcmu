@@ -14,21 +14,21 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import other python files
-import Profiles
-import Buddy
+from profiles import Profile
+from buddy import Buddy
 from livekit_api import setup_livekit_routes
-from live_transcription import load_vosk_model, handle_transcription_websocket
+from services import create_transcription_service
 
 # Pydantic model for structured output
 class ProfileState(BaseModel):
     profession: str = Field(..., description="Professional role/background")
     memory: Dict[str, str] = Field(..., description="Updated knowledge, assumptions, or insights")
     understanding_threshold: float = Field(..., ge=0, le=1, description="Minimum comprehension needed to stay engaged")
+    wps: int = Field(..., ge=0, le=10, description="Words per second when speaking")
     filler_words: int = Field(..., ge=0, le=50, description="Number of filler words per minute when speaking")
     interest: float = Field(..., ge=0, le=1, description="Current interest level in the topic")
     confidence: float = Field(..., ge=0, le=1, description="Confidence in understanding of current discussion")
 
-# API declarations
 app = FastAPI()
 
 # Add CORS middleware to allow frontend requests
@@ -70,12 +70,12 @@ async def startup_event():
 
     # Step 2: Initialize empty profiles list and buddy
     profiles = [None] * EXPECTED_PROFILES
-    buddy = Buddy.Buddy()
+    buddy = Buddy()
     print("Buddy initialized")
     
-    # Step 3: Load Vosk model for speech recognition
-    vosk_loaded = load_vosk_model()
-    if vosk_loaded:
+    # Step 3: Initialize transcription service
+    transcription_service = create_transcription_service()
+    if transcription_service:
         print("Voice recognition system ready")
     else:
         print("Voice recognition system disabled - no model found")
@@ -87,7 +87,7 @@ async def startup_event():
             try:
                 with open(f"profile{i}.json", "r") as f:
                     data = json.load(f)
-                new_profile = Profiles.Profile(
+                new_profile = Profile(
                     name=data.get("name", f"User{len(profiles)}"),
                     profession=data.get("profession", "Unknown"),
                     memory=data.get("memory", {}),
@@ -167,11 +167,12 @@ def process_data(data):
                 interest=profile.interest,
                 confidence=profile.confidence
             )
-            
+
             # Update profile with new state (keeping our calculated WPS)
             profile.profession = updated_state.profession
             profile.memory = updated_state.memory
             profile.understanding_threshold = updated_state.understanding_threshold
+            profile.wps = updated_state.wps 
             profile.filler_words = updated_state.filler_words
             profile.interest = updated_state.interest
             profile.confidence = updated_state.confidence
@@ -201,7 +202,42 @@ async def receive_data(request: Request):
 # WebSocket endpoint for live transcription
 @app.websocket("/ws/transcribe")
 async def websocket_transcribe(websocket: WebSocket):
-    await handle_transcription_websocket(websocket)
+    await websocket.accept()
+    print(f"Client connected for transcription: {websocket.client}")
+
+    # Create a new transcription service for this connection
+    transcription_service = create_transcription_service()
+    if not transcription_service:
+        await websocket.send_text(json.dumps({
+            "type": "error",
+            "message": "Speech recognition service not available"
+        }))
+        await websocket.close()
+        return
+
+    try:
+        while True:
+            # Receive audio data
+            data = await websocket.receive_bytes()
+            print(f"Received audio data: {len(data)} bytes")
+
+            # Process audio with the service
+            result = await transcription_service.process_audio(data)
+
+            if result:
+                await websocket.send_text(json.dumps(result))
+
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+        try:
+            await websocket.send_text(json.dumps({
+                "type": "error",
+                "message": f"Connection error: {str(e)}"
+            }))
+        except:
+            pass  # Connection might already be closed
+    finally:
+        print(f"Client disconnected: {websocket.client}")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8001)

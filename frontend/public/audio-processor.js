@@ -4,7 +4,8 @@ class AudioProcessor extends AudioWorkletProcessor {
     super();
     // Buffer to collect audio samples before sending
     this.sampleBuffer = [];
-    this.bufferSize = 4096; // Send audio in chunks of 4096 samples
+    this.bufferSize = 2048; // Smaller buffer for more frequent updates
+    console.log('AudioProcessor initialized with buffer size:', this.bufferSize);
   }
 
   // This method is called for every chunk of audio data (128 samples)
@@ -41,6 +42,8 @@ class AudioProcessor extends AudioWorkletProcessor {
       // Convert to 16-bit signed integer
       pcmData[i] = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
     }
+
+    console.log(`AudioProcessor: Converting ${this.sampleBuffer.length} samples to PCM`);
 
     // Post the raw PCM data back to the main thread
     // Use transferable objects for better performance

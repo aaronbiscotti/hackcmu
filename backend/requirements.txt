@@ -51,4 +51,5 @@ urllib3==2.5.0
 uvicorn==0.24.0
 vosk
 websockets
+httpx
 yarl==1.20.1
