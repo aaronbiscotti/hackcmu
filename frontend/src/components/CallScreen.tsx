@@ -8,7 +8,6 @@ import {
   RoomContext,
   useParticipants,
   useLocalParticipant,
-  useTrackToggle,
 } from '@livekit/components-react';
 import ParticipantTile from './ParticipantTile';
 import ExitConfirmationModal from './ExitConfirmationModal';
@@ -176,14 +175,62 @@ function CustomVideoConference({ onEndCall }: { onEndCall: () => void }) {
   const participants = useParticipants();
   const localParticipant = useLocalParticipant();
   const [showExitModal, setShowExitModal] = React.useState(false);
+  const [micEnabled, setMicEnabled] = React.useState(true);
+  const [cameraEnabled, setCameraEnabled] = React.useState(true);
 
-  const { toggle: toggleMic, enabled: micEnabled } = useTrackToggle({
-    source: Track.Source.Microphone
-  });
+  // Use room context to get access to the room
+  const room = React.useContext(RoomContext);
 
-  const { toggle: toggleCamera, enabled: cameraEnabled } = useTrackToggle({
-    source: Track.Source.Camera
-  });
+  const toggleMic = React.useCallback(async () => {
+    if (room) {
+      try {
+        await room.localParticipant.setMicrophoneEnabled(!micEnabled);
+        setMicEnabled(!micEnabled);
+      } catch (error) {
+        console.error('Error toggling microphone:', error);
+      }
+    }
+  }, [room, micEnabled]);
+
+  const toggleCamera = React.useCallback(async () => {
+    if (room) {
+      try {
+        await room.localParticipant.setCameraEnabled(!cameraEnabled);
+        setCameraEnabled(!cameraEnabled);
+      } catch (error) {
+        console.error('Error toggling camera:', error);
+      }
+    }
+  }, [room, cameraEnabled]);
+
+  // Update state when track publications change
+  React.useEffect(() => {
+    if (!room) return;
+
+    const updateTrackStates = () => {
+      const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+      const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera);
+
+      setMicEnabled(micPub?.isEnabled ?? false);
+      setCameraEnabled(camPub?.isEnabled ?? false);
+    };
+
+    // Update initially
+    updateTrackStates();
+
+    // Listen for track changes
+    room.localParticipant.on('trackPublished', updateTrackStates);
+    room.localParticipant.on('trackUnpublished', updateTrackStates);
+    room.localParticipant.on('trackMuted', updateTrackStates);
+    room.localParticipant.on('trackUnmuted', updateTrackStates);
+
+    return () => {
+      room.localParticipant.off('trackPublished', updateTrackStates);
+      room.localParticipant.off('trackUnpublished', updateTrackStates);
+      room.localParticipant.off('trackMuted', updateTrackStates);
+      room.localParticipant.off('trackUnmuted', updateTrackStates);
+    };
+  }, [room]);
 
   const handleEndCall = () => {
     setShowExitModal(true);
@@ -205,8 +252,8 @@ function CustomVideoConference({ onEndCall }: { onEndCall: () => void }) {
 
   return (
     <div className="h-screen flex flex-col bg-snow">
-      {/* Video Grid - Takes up most of the screen with equal padding */}
-      <div className="flex-1 p-8 overflow-hidden">
+      {/* Video Grid - Takes up most of the screen with reduced padding */}
+      <div className="flex-1 p-4 overflow-hidden">
         {participants.length > 0 ? (
           <div className={`h-full grid gap-4 ${getGridLayout(participants.length)}`}>
             {participants.map((participant) => (
@@ -228,10 +275,10 @@ function CustomVideoConference({ onEndCall }: { onEndCall: () => void }) {
       </div>
 
       {/* Custom Control Bar - Fixed at bottom */}
-      <div className="flex-shrink-0 flex items-center justify-center gap-6 p-8">
+      <div className="flex-shrink-0 flex items-center justify-center gap-6 p-4">
         {/* Microphone Button */}
         <button
-          onClick={() => toggleMic()}
+          onClick={toggleMic}
           className={`p-4 rounded-full transition-colors duration-200 ${
             micEnabled
               ? 'bg-green-600 hover:bg-green-700'
@@ -247,7 +294,7 @@ function CustomVideoConference({ onEndCall }: { onEndCall: () => void }) {
 
         {/* Camera Button */}
         <button
-          onClick={() => toggleCamera()}
+          onClick={toggleCamera}
           className={`p-4 rounded-full transition-colors duration-200 ${
             cameraEnabled
               ? 'bg-green-600 hover:bg-green-700'
