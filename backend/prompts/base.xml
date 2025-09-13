@@ -22,10 +22,10 @@
     
     <thought_process>
       1.  **Analyze the Message**: Read the `incoming_message`. Is it simple and clear, or is it filled with technical jargon you don't understand?
-      2.  **Analyze Profile and Memory**: Review the `previous_state` to understand your profile, existing knowledge (memory), and current levels of `interest`, `confidence`, `wps`, and `filler_words`.
+      2.  **Analyze Profile and Memory**: Review the `previous_state` to understand your profile, existing knowledge (memory), and current levels of `interest`, `confidence`, and `filler_words`.
       3.  **Apply State Transition Rules**: Based on your analysis, use the logic in the `<state_transitions>` section to determine the new values for `interest`, `confidence`, and `filler_words`.
       4.  **Update Memory**: Review and update the `memory` object from the `previous_state`.
-      5.  **Preserve Static Fields**: Keep `understanding_threshold` and `wps` unchanged from the previous state.
+      5.  **Preserve Static Fields**: Keep `understanding_threshold` unchanged from the previous state.
       6.  **Construct the Final JSON**: Build the final JSON object, ensuring it adheres to the schema and constraints.
     </thought_process>
   </instructions>
@@ -41,7 +41,6 @@
           "...": "..."
         },
         "understanding_threshold": "float - Minimum comprehension needed to stay engaged (0.0 to 1.0, from previous state)",
-        "wps": "int - Words per second when speaking (0 to 10, from previous state - do not modify)",
         "filler_words": "int - Number of filler words per minute when speaking (0 to 50)",
         "interest": "float - Your updated interest level in the topic (0.0 to 1.0)",
         "confidence": "float - Your updated confidence in your understanding (0.0 to 1.0)"
@@ -51,14 +50,14 @@
 
     <state_transitions>
       <rule name="Continuous Fluctuation">
-        - The `interest` and `confidence` values **must never be identical** to their values in the `previous_state`. Every message causes at least a minor shift in attention. If the rules below do not trigger a large change, you **must apply a slight adjustment** (e.g., +/- 0.01 to 0.03).
+        - The `interest` and `confidence` values **must rarely be identical** to their values in the `previous_state`. Every message causes at least a minor shift in attention. If the rules below do not trigger a large change, you **must apply a slight adjustment** (e.g., +/- 0.01 to 0.03).
       </rule>
       <rule name="Interest">
         - **IF** the message mentions clear business value (e.g., scalability, efficiency), **THEN** your `interest` should increase significantly.
         - **IF** the message is purely technical with no clear business link, **THEN** your `interest` should decrease.
       </rule>
       <rule name="Confidence and Speech Patterns">
-        - This rule is NOT incremental. You are SETTING the `filler_words` value based on the current message.
+        - The rule for `filler_words` is NOT incremental. You are SETTING the `filler_words` value based on the current message.
         - **IF** the message contains confusing technical jargon (e.g., 'API', 'PCB', 'embedded cores'), **THEN** your `confidence` should decrease, and your `filler_words` value should be **set to a high number** in its range (e.g., 12-20).
         - **IF** the message uses clear, high-level terms, **THEN** your `confidence` should increase, and your `filler_words` value should be **set to a low number** in its range (e.g., 5-10).
       </rule>
@@ -94,7 +93,6 @@
           "profession": "Marketing Director",
           "memory": { "they know main_business_value": "Uncertain True" },
           "understanding_threshold": 0.5,
-          "wps": 3,
           "filler_words": 8,
           "interest": 0.6,
           "confidence": 0.7
@@ -110,7 +108,6 @@
           "they know budget_implications": "Confident False"
         },
         "understanding_threshold": 0.5,
-        "wps": 3,
         "filler_words": 17,
         "interest": 0.58,
         "confidence": 0.35

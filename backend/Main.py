@@ -21,6 +21,9 @@ from profiles import Profile
 from buddy import Buddy
 from livekit_api import setup_livekit_routes
 
+
+FILLER_WORDS = {"um", "uh", "like", "so", "you know", "actually", "basically", "literally", "well", "right"}
+
 # Pydantic model for structured output
 class ProfileState(BaseModel):
     profession: str = Field(..., description="Professional role/background")
@@ -86,7 +89,7 @@ async def get_emotion_from_text(text: str, profile: Dict[str, Any]) -> str:
 
     profile_context = json.dumps(profile, indent=2)
     prompt = (
-        "Analyze the emotion of the following speech given the user's profile and memory. In addition, note that if wps is high (>= 5) we probably want to react with slow emotion, if filler is high we would probably want confused, etc.\n\n"
+        "Analyze the emotion of the following speech given the user's profile and memory. In addition, note that if wps is high (>= 5) we probably want to react with slow emotion, if filler is high (>= 4) we would probably want confused, etc.\n\n"
         f"Profile:\n{profile_context}\n\n"
         f"Text: '{text}'\n\n"
         "Respond with ONLY ONE word only from: idle, question, nodding, shaking_head, excited, thinking, confused, speaking, slow. Make sure there is ABSOLUTELY NO punctuation, extra words, newlines, etc.\n\n"
@@ -178,6 +181,11 @@ async def process_data(data):
 
     emotion = "speaking"
     if profile is not None and prompt_template:
+        # Calculate filler words from the current message
+        words = message.lower().split()
+        filler_count = sum(1 for word in words if word.strip('.,!?') in FILLER_WORDS)
+        profile.filler_words = filler_count
+
         if profile.last_timestamp is not None and profile.last_message is not None:
             time_diff = timestamp - profile.last_timestamp
             if time_diff > 0:
@@ -194,7 +202,7 @@ async def process_data(data):
             "profession": profile.profession,
             "memory": profile.memory,
             "understanding_threshold": profile.understanding_threshold,
-            "filler_words": profile.filler_words,
+            "filler_words": filler_count,  # Use the calculated value
             "interest": profile.interest,
             "confidence": profile.confidence,
             "current_emotion": profile.current_emotion
@@ -222,8 +230,8 @@ async def process_data(data):
                     profession=state_dict['profession'],
                     memory=state_dict['memory'],
                     understanding_threshold=state_dict['understanding_threshold'],
-                    wps=state_dict['wps'],
-                    filler_words=state_dict['filler_words'],
+                    wps=profile.wps,
+                    filler_words=filler_count,  # Use calculated value instead of LLM response
                     interest=state_dict['interest'],
                     confidence=state_dict['confidence']
                 )
