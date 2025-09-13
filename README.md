@@ -42,7 +42,7 @@ Totter the Otter appears in the top-left corner during video calls with various 
 ### Backend (`/backend`)
 - **Framework**: FastAPI (Python)
 - **WebRTC**: LiveKit server integration
-  **Claude Sonnet 3.7 API**: "Game" states for structured output via. Instructor for outputting LLM's thoughts (factoring in word speed, content, tone of language) and decision for Totter to use our tooling functions to trigger a reaction.
+- **Claude Sonnet 3.7 API**: "Game" states for structured output via. Instructor for outputting LLM's thoughts (factoring in word speed, content, tone of language) and decision for Totter to use our tooling functions to trigger a reaction.
 - **Speech Recognition**: Vosk model for transcription support via. 2GB English 
 - **API**: RESTful endpoints for connection management
 
