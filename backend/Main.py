@@ -5,6 +5,7 @@ import anthropic
 import instructor
 from pydantic import BaseModel, Field
 from typing import Dict
+import asyncio
 
 # Import other python files
 import Profiles
@@ -37,42 +38,45 @@ prompt_template = None
 async def startup_event():
     global profiles, buddy, prompt_template
     print("Backend server is starting up!")
-    json_file_path = "profiles.json"  # Change this path!!!
 
-    # Load XML prompt template
+    # Step 1: Load XML prompt template
     try:
         with open("prompts/base.xml", "r") as f:
             prompt_template = f.read()
             print("Loaded prompt template")
     except Exception as e:
         print(f"Error loading prompt template: {e}")
+        return
 
-    # Open profiles path
-    try:
-        with open(json_file_path, "r") as f:
-            global profiles_data
-            profiles_data = json.load(f)
-            print("Loaded profiles:", profiles_data)
-    except Exception as e:
-        print(f"Error loading profiles: {e}")
-        profiles_data = {}
-    
-    # Initialize profiles list
+    # Step 2: Initialize empty profiles list and buddy
     profiles = [None] * EXPECTED_PROFILES
-    
-    # Initialize profiles
-    for i in range(EXPECTED_PROFILES):
-        profiles[i] = Profiles.Profile(
-            name=f"Profile_{i}",
-            prof="Business Manager", 
-            mem={"meeting_context": "technical discussion starting"}
-        )
-        profiles[i].load_from_json(profiles_data.get(str(i), {}))
-        print(f"Initialized profile {i}: {profiles[i]}")
-    
-    # Initialize buddy
     buddy = Buddy.Buddy()
-    print("Buddy initialized.")
+    print("Buddy initialized")
+    
+    # Step 3: Wait for profiles to connect (simulate by reading from profile.json)
+    print(f"Waiting for {EXPECTED_PROFILES} profiles to connect...")
+    for i in range(EXPECTED_PROFILES):
+        while True:
+            try:
+                with open("profile.json", "r") as f:
+                    data = json.load(f)
+                new_profile = Profiles.Profile(
+                    name=data.get("name", f"User{len(profiles)}"),
+                    profession=data.get("profession", "Unknown"),
+                    memory=data.get("memory", {}),
+                    understanding_threshold=data.get("understanding_threshold", 0.5)
+                )
+                profiles[i] = new_profile  # Use index instead of append since we initialized with [None] * EXPECTED_PROFILES
+                print(f"Profile {i} registered: {new_profile}")
+                break  # Exit the while loop once profile is loaded
+            except FileNotFoundError:
+                print(f"Waiting for profile {i} data...")
+                await asyncio.sleep(1)
+            except Exception as e:
+                print(f"Error loading profile {i}: {e}")
+                await asyncio.sleep(1)
+
+    print(f"All {EXPECTED_PROFILES} profiles connected.")
 
 # Process incoming data, update profiles, and have buddy react
 def process_data(data):
@@ -82,44 +86,49 @@ def process_data(data):
     # Parse data into variables
     profile_name, phrase_with_timestamp = parse_data(data)
     
-    # Process each profile
-    for i, profile in enumerate(profiles):
-        if profile is not None and prompt_template:
-            # Get current state
-            previous_state = {
-                "profession": profile.prof,
-                "memory": profile.mem,
-                "understanding_threshold": profile.understand_threshold,
-                "wps": 3,
-                "filler_words": 8,
-                "interest": 0.5,
-                "confidence": 0.5
-            }
+    # Process main user's profile
+    profile = profiles[0]  # Assuming first profile is the main user
+    if profile is not None and prompt_template:
+        # Get current state
+        previous_state = {
+            "name": profile_name,
+            "profession": profile.prof,
+            "memory": profile.mem,
+            "understanding_threshold": profile.understand_threshold,
+            "wps": profile.wps,
+            "filler_words": profile.filler_words,
+            "interest": profile.interest,
+            "confidence": profile.confidence
+        }
+        
+        # Format prompt with dynamic inputs
+        formatted_prompt = prompt_template.replace("{{frontend_message}}", str(phrase_with_timestamp))
+        formatted_prompt = formatted_prompt.replace("{{previous_state_json}}", json.dumps(previous_state, indent=2))
+        
+        try:
+            # Use instructor for structured response
+            updated_state = llm.messages.create(
+                model="claude-3-5-sonnet-20241022",
+                max_tokens=1000,
+                messages=[{"role": "user", "content": formatted_prompt}],
+                response_model=ProfileState
+            )
             
-            # Format prompt with dynamic inputs
-            formatted_prompt = prompt_template.replace("{{frontend_message}}", str(phrase_with_timestamp))
-            formatted_prompt = formatted_prompt.replace("{{previous_state_json}}", json.dumps(previous_state, indent=2))
+            # Update profile with new state
+            profile.prof = updated_state.profession
+            profile.mem = updated_state.memory
+            profile.understand_threshold = updated_state.understanding_threshold
+            profile.wps = updated_state.wps
+            profile.filler_words = updated_state.filler_words
+            profile.interest = updated_state.interest
+            profile.confidence = updated_state.confidence
             
-            try:
-                # Use instructor for structured response
-                updated_state = llm.messages.create(
-                    model="claude-3-5-sonnet-20241022",
-                    max_tokens=1000,
-                    messages=[{"role": "user", "content": formatted_prompt}],
-                    response_model=ProfileState
-                )
-                
-                # Update profile with new state
-                profile.prof = updated_state.profession
-                profile.mem = updated_state.memory
-                profile.understand_threshold = updated_state.understanding_threshold
-                
-                print(f"Updated profile {i} state:", updated_state.model_dump())
-                
-            except Exception as e:
-                print(f"Error processing profile {i}: {e}")
+            print(f"Updated user profile state:", updated_state.model_dump())
+            
+        except Exception as e:
+            print(f"Error processing user profile: {e}")
     
-    return {"status": "processed"}
+    return
 
 # Parses incoming data
 def parse_data(data):

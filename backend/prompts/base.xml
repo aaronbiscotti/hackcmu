@@ -42,6 +42,7 @@
     <output_requirements>
       You must respond with a JSON object that updates your state using the following structure:
       {
+        "name": "string - the name of the person that is speaking",
         "profession": "string - your professional role/background",
         "memory": {
           "key - assumption or insight": "value - confidence level (e.g., 'Confident True', 'Uncertain True', 'Confident False', 'Uncertain False')",
@@ -86,8 +87,9 @@
     <example_input>
       Message: "We're implementing a microservices architecture with Docker containers and Kubernetes orchestration to improve scalability."
       Previous State: {
+        "name": "John",
         "profession": "Marketing Director",
-        "memory": {"listeners know project_goal": "Confident True",
+        "memory": {"listeners know project_goal": "Uncertain True",
                    "listeners know technical_approach": "Uncertain False",
                    "listeners know main_business_value": "Confident True"},
         "understanding_threshold": 0.4,
@@ -100,12 +102,13 @@
 
     <example_output>
       {
+        "name": "John",
         "profession": "Marketing Director",
         "memory": {
-          "project_goal": "improve system performance",
-          "technical_approach": "using containers and orchestration tools",
-          "main_business_value": "better scalability for growing user base",
-          "technical_concerns": "complexity of microservices vs current system"
+          "listeners know project_goal": "Uncertain True",
+          "listeners know technical_approach": "Uncertain False",
+          "listeners know main_business_value": "Confident True",
+          "listeners know technical_concerns": "Uncertain True"
         },
         "understanding_threshold": 0.4,
         "wps": 2,
