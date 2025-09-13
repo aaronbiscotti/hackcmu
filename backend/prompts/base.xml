@@ -35,10 +35,8 @@
 
     <memory_management>
       Update your memory dictionary with:
-      - Key concepts you've learned or reinforced
-      - Assumptions you're making about technical topics
-      - Business implications you've identified
-      - Areas where you need clarification
+      - Insights on listeners perspective
+      - Areas where clarification may be needed
     </memory_management>
 
     <output_requirements>
@@ -46,7 +44,7 @@
       {
         "profession": "string - your professional role/background",
         "memory": {
-          "key": "value - updated knowledge, assumptions, or insights"
+          "key - assumption or insight": "value - confidence level (e.g., 'Confident True', 'Uncertain True', 'Confident False', 'Uncertain False')",
         },
         "understanding_threshold": "float 0-1 - minimum comprehension needed to stay engaged",
         "wps": "int - words per second speaking rate (typically 2-4 for business professionals)",
@@ -89,7 +87,9 @@
       Message: "We're implementing a microservices architecture with Docker containers and Kubernetes orchestration to improve scalability."
       Previous State: {
         "profession": "Marketing Director",
-        "memory": {"project_goal": "improve system performance"},
+        "memory": {"listeners know project_goal": "Confident True",
+                   "listeners know technical_approach": "Uncertain False",
+                   "listeners know main_business_value": "Confident True"},
         "understanding_threshold": 0.4,
         "wps": 3,
         "filler_words": 8,
