@@ -92,11 +92,12 @@ async def get_emotion_from_text(text: str, profile: Dict[str, Any]) -> str:
         "Analyze the emotion of the following speech given the user's profile and memory. In addition, note that if wps is high (>= 5) we probably want to react with slow emotion, if filler is high (>= 4) we would probably want confused, etc.\n\n"
         f"Profile:\n{profile_context}\n\n"
         f"Text: '{text}'\n\n"
-        "Respond with ONLY ONE word only from: idle, question, nodding, shaking_head, excited, thinking, confused, speaking, slow. Make sure there is ABSOLUTELY NO punctuation, extra words, newlines, etc.\n\n"
+        "Respond with ONLY ONE word only from: idle, question, nodding, shaking_head, excited, thinking, confused, speaking, slow. "
+        "Make sure there is ABSOLUTELY NO punctuation, extra words, newlines, etc. Note that the emotion should only change from the previous emotion that was provided around 40 percent of the time, with idle being a default state if it seems nothing is needed.\n\n"
     )
 
     payload = {
-        "model": "claude-3-5-haiku-20241022",
+        "model": "claude-3-7-sonnet-20250219",
         "max_tokens": 10,
         "messages": [{"role": "user", "content": prompt}]
     }
