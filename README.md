@@ -27,7 +27,7 @@ Totter the Otter appears in the top-left corner during video calls with various 
 - **Excited** - Totter matches your excitation
 - **Angry** - Totter did not like what you said. Be careful.
 
-<img width="2940" height="1330" alt="image" src="https://github.com/user-attachments/assets/a1670bde-a90b-4639-8451-f836c090c454" />
+<img width="1536" height="1022" alt="Creating a sustainable future,one computer at a time" src="https://github.com/user-attachments/assets/166ba2f0-1271-4adc-9044-c46eefceef41" />
 
 
 ## Architecture
