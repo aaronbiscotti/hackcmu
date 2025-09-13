@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import json
 import anthropic
@@ -7,10 +8,15 @@ from pydantic import BaseModel, Field
 from typing import Dict
 import asyncio
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Import other python files
 import Profiles
 import Buddy
+from livekit_api import setup_livekit_routes
 
 # Pydantic model for structured output
 class ProfileState(BaseModel):
@@ -24,7 +30,20 @@ class ProfileState(BaseModel):
 
 # API declarations
 app = FastAPI()
-llm = instructor.from_anthropic(anthropic.Anthropic(api_key="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"))
+
+# Add CORS middleware to allow frontend requests
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # Frontend dev server
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+client = anthropic.Anthropic(api_key="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")
+
+# Setup LiveKit API routes
+setup_livekit_routes(app)
 
 # Constants
 EXPECTED_PROFILES = 2
@@ -108,12 +127,26 @@ def process_data(data):
         formatted_prompt = formatted_prompt.replace("{{previous_state_json}}", json.dumps(previous_state, indent=2))
         
         try:
-            # Use instructor for structured response
-            updated_state = llm.messages.create(
+            # Use direct Anthropic API for now (TODO: Fix instructor integration)
+            response = client.messages.create(
                 model="claude-3-5-haiku-20241022",
                 max_tokens=1000,
-                messages=[{"role": "user", "content": formatted_prompt}],
-                response_model=ProfileState
+                messages=[{"role": "user", "content": formatted_prompt}]
+            )
+            
+            # For now, just parse the response text manually (TODO: Use structured output)
+            response_text = response.content[0].text
+            print(f"Raw response: {response_text}")
+            
+            # Create a minimal updated state (TODO: Parse structured response)
+            updated_state = ProfileState(
+                profession=profile.profession,
+                memory=profile.memory,
+                understanding_threshold=profile.understanding_threshold,
+                wps=profile.wps,
+                filler_words=profile.filler_words,
+                interest=profile.interest,
+                confidence=profile.confidence
             )
             
             # Update profile with new state
@@ -148,4 +181,4 @@ async def receive_data(request: Request):
     return {"status": "success"}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8001)

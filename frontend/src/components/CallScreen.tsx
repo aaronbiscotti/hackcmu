@@ -27,7 +27,9 @@ import {
 import { MicrophoneIcon, VideoCameraIcon, PhoneIcon, VideoCameraSlashIcon, SpeakerXMarkIcon } from '@heroicons/react/24/outline';
 import { useLowCPUOptimizer } from '@/lib/usePerfomanceOptimiser';
 
-const CONN_DETAILS_ENDPOINT = '/api/connection-details';
+const CONN_DETAILS_ENDPOINT = process.env.NEXT_PUBLIC_BACKEND_URL
+  ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/connection-details`
+  : 'http://localhost:8001/api/connection-details';
 
 export default function CallScreen({ onEndCall, meetingCode, userName }: { onEndCall: () => void; meetingCode: string; userName: string }) {
   const [preJoinChoices, setPreJoinChoices] = React.useState<LocalUserChoices | undefined>(
@@ -227,7 +229,7 @@ function CustomVideoConference({ onEndCall }: { onEndCall: () => void }) {
       <div className="flex-shrink-0 flex items-center justify-center gap-6 p-8">
         {/* Microphone Button */}
         <button
-          onClick={toggleMic}
+          onClick={() => toggleMic()}
           className={`p-4 rounded-full transition-colors duration-200 ${
             micEnabled
               ? 'bg-green-600 hover:bg-green-700'
@@ -243,7 +245,7 @@ function CustomVideoConference({ onEndCall }: { onEndCall: () => void }) {
 
         {/* Camera Button */}
         <button
-          onClick={toggleCamera}
+          onClick={() => toggleCamera()}
           className={`p-4 rounded-full transition-colors duration-200 ${
             cameraEnabled
               ? 'bg-green-600 hover:bg-green-700'
