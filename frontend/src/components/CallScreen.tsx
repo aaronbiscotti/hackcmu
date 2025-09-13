@@ -31,6 +31,89 @@ const CONN_DETAILS_ENDPOINT = process.env.NEXT_PUBLIC_BACKEND_URL
   ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/connection-details`
   : 'http://localhost:8001/api/connection-details';
 
+// ReactionBox component for displaying reactions based on LLM emotion
+function ReactionBox({ room }: { room: Room }) {
+  const [currentEmotion, setCurrentEmotion] = React.useState('idle');
+  const [isShowingSurprised, setIsShowingSurprised] = React.useState(false);
+  const [gifKey, setGifKey] = React.useState(0); // Force GIF restart
+
+  React.useEffect(() => {
+    if (!room) return;
+
+    // Listen for emotion changes from LiveAssistant
+    const handleEmotionChange = (event: CustomEvent) => {
+      const emotion = event.detail;
+      setCurrentEmotion(emotion);
+      
+      // If emotion is not idle, show surprised.gif
+      if (emotion !== 'idle' && !isShowingSurprised) {
+        setIsShowingSurprised(true);
+        setGifKey(prev => prev + 1); // Force GIF restart
+        
+        // Reset to idle after GIF duration (assume 3 seconds for surprised.gif)
+        setTimeout(() => {
+          setIsShowingSurprised(false);
+          setCurrentEmotion('idle');
+        }, 3000);
+      }
+    };
+
+    // Listen for custom emotion events
+    window.addEventListener('emotion-change', handleEmotionChange as EventListener);
+
+    return () => {
+      window.removeEventListener('emotion-change', handleEmotionChange as EventListener);
+    };
+  }, [room, isShowingSurprised]);
+
+  return (
+    <div className="window" style={{ width: '200px', height: '250px' }}>
+      <div className="title-bar">
+        <div className="title-bar-text">Totter</div>
+      </div>
+      <div className="window-body" style={{ 
+        padding: '8px', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        height: 'calc(100% - 30px)' // Account for title bar
+      }}>
+        <div className="sunken-panel" style={{ 
+          width: '100%', 
+          height: '100%', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          backgroundColor: '#c0c0c0'
+        }}>
+          {isShowingSurprised ? (
+            <img 
+              key={gifKey}
+              src="/reactions/surprised.gif" 
+              alt="Surprised reaction"
+              style={{ 
+                maxWidth: '100%', 
+                maxHeight: '100%',
+                objectFit: 'contain'
+              }}
+            />
+          ) : (
+            <img 
+              src="/reactions/idle.png" 
+              alt="Idle state"
+              style={{ 
+                maxWidth: '100%', 
+                maxHeight: '100%',
+                objectFit: 'contain'
+              }}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CallScreen({ onEndCall, meetingCode, userName }: { onEndCall: () => void; meetingCode: string; userName: string }) {
   const [preJoinChoices, setPreJoinChoices] = React.useState<LocalUserChoices | undefined>(
     undefined,
@@ -251,7 +334,14 @@ function CustomVideoConference({ onEndCall }: { onEndCall: () => void }) {
   };
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'white' }}>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'white', position: 'relative' }}>
+      {/* Overlay Reaction Box - Top left */}
+      {room && (
+        <div style={{ position: 'absolute', top: '1rem', left: '1rem', zIndex: 1000 }}>
+          <ReactionBox room={room} />
+        </div>
+      )}
+      
       {/* Video Grid - Takes up most of the screen with reduced padding */}
       <div style={{ flex: 1, padding: '1rem', overflow: 'hidden' }}>
         {participants.length > 0 ? (

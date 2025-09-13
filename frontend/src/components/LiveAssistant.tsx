@@ -116,12 +116,23 @@ export default function LiveAssistant({ room }: LiveAssistantProps) {
               console.log(`🎭 Animation trigger: ${data.animation_trigger}`);
               setCurrentAnimation(data.animation_trigger);
 
+              // Dispatch custom event for ReactionBox
+              const emotionEvent = new CustomEvent('emotion-change', {
+                detail: data.animation_trigger
+              });
+              window.dispatchEvent(emotionEvent);
+
               if (animationTimeoutRef.current) {
                 clearTimeout(animationTimeoutRef.current);
               }
 
               animationTimeoutRef.current = setTimeout(() => {
                 setCurrentAnimation('idle');
+                // Dispatch idle event
+                const idleEvent = new CustomEvent('emotion-change', {
+                  detail: 'idle'
+                });
+                window.dispatchEvent(idleEvent);
               }, 3000);
             }
           }
