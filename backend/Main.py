@@ -29,7 +29,7 @@ class ProfileState(BaseModel):
     profession: str = Field(..., description="Professional role/background")
     memory: Dict[str, str] = Field(..., description="Updated knowledge, assumptions, or insights")
     understanding_threshold: float = Field(..., ge=0, le=1, description="Minimum comprehension needed to stay engaged")
-    wps: int = Field(..., ge=0, le=10, description="Words per second when speaking")
+    wps: int = Field(..., ge=0, le=100, description="Words per second when speaking")
     filler_words: int = Field(..., ge=0, le=50, description="Number of filler words per minute when speaking")
     interest: float = Field(..., ge=0, le=1, description="Current interest level in the topic")
     confidence: float = Field(..., ge=0, le=1, description="Confidence in understanding of current discussion")
