@@ -5,23 +5,31 @@ class Profile:
     def __init__(
         self,
         name: str,
-        prof: str,
-        mem: Dict[str, str],    # (assumption, confidence)
-        understand_threshold: float = 0.5
+        profession: str,
+        memory: Dict[str, str],    # (assumption, confidence)
+        understanding_threshold: float = 0.5,
+        wps: int = 3,
+        filler_words: int = 8,
+        interest: float = 0.6,
+        confidence: float = 0.5
     ):
         self.name = name
-        self.prof = prof
-        self.mem = mem
-        self.understand_threshold = understand_threshold
-
-    def load_from_json(self, data: Dict):
-        self.name = data.get("name", self.name)
-        self.prof = data.get("prof", self.prof)
-        self.mem = data.get("mem", self.mem)
-        self.understand_threshold = data.get("understand_threshold", self.understand_threshold)
+        self.profession = profession
+        self.memory = memory
+        self.understanding_threshold = understanding_threshold
+        self.wps = wps,
+        self.filler_words = filler_words
+        self.interest = interest
+        self.confidence = confidence
 
     def __repr__(self):
         return (
-            f"name={self.name!r}, prof={self.prof!r}, mem={self.mem!r}, "
-            f"understand_threshold={self.understand_threshold!r}"
+            f"name={self.name!r}, "
+            f"profession={self.profession!r}, "
+            f"memory={self.memory!r}, "
+            f"understanding_threshold={self.understanding_threshold!r}, "
+            f"wps={self.wps!r}, "
+            f"filler_words={self.filler_words!r}, "
+            f"interest={self.interest!r}, "
+            f"confidence={self.confidence!r}"
         )

@@ -1,0 +1,10 @@
+{
+    "name": "TestUserListener",
+    "profession": "Student Listener",
+    "memory": {},
+    "understanding_threshold": 0.55,
+    "wps": 0,
+    "filler_words": 0,
+    "interest": 0.9,
+    "confidence": 0.5
+}

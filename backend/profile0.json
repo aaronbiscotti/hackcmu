@@ -1,0 +1,10 @@
+{
+    "name": "TestUser",
+    "profession": "Student",
+    "memory": {"initial": "First time user"},
+    "understanding_threshold": 0.7,
+    "wps": 3,
+    "filler_words": 5,
+    "interest": 0.8,
+    "confidence": 0.6
+}
