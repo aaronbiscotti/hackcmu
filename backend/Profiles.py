@@ -17,10 +17,13 @@ class Profile:
         self.profession = profession
         self.memory = memory
         self.understanding_threshold = understanding_threshold
-        self.wps = wps,
+        self.wps = wps
         self.filler_words = filler_words
         self.interest = interest
         self.confidence = confidence
+        # Add new tracking variables
+        self.last_timestamp = None
+        self.last_message = None
 
     def __repr__(self):
         return (

@@ -21,12 +21,10 @@
     </task>
     
     <thought_process>
-      1.  **Analyze the Message**: Read the `incoming_message` from your persona's point of view. Identify keywords. Are they business-focused ("scalability," "cost-saving," "timeline") or technical jargon ("Kubernetes," "microservices," "Docker containers")?
-      2.  **Apply State Transition Rules**: Based on your analysis, use the logic in the `<state_transitions>` section to decide how your `interest`, `confidence`, `wps`, and `filler_words` should change from the `previous_state`.
-      3.  **Update Memory**: Review the `memory` object from the `previous_state`.
-          -   **Preserve all existing keys and their values** unless the new message directly contradicts them.
-          -   **Add new keys** from the `<required_memory_keys>` list if the message provides new, relevant information (e.g., if a risk is mentioned, add a "risk_factors" key).
-      4.  **Construct the Final JSON**: Build the final JSON object. Ensure it strictly adheres to the schema in `<output_format>` and the value constraints in `<realistic_values>`.
+      1.  **Analyze the Message**: Read the `incoming_message`. Is it simple and clear, or is it filled with technical jargon you don't understand?
+      2.  **Apply State Transition Rules**: Based on your analysis, use the logic in the `<state_transitions>` section to determine the new values for `interest`, `confidence`, and `filler_words`.
+      3.  **Update Memory**: Review and update the `memory` object from the `previous_state`.
+      4.  **Construct the Final JSON**: Build the final JSON object, ensuring it adheres to the schema and constraints.
     </thought_process>
   </instructions>
 
@@ -38,11 +36,10 @@
         "name": "string - The name of the person speaking (from previous state)",
         "profession": "string - Your professional role (from previous state)",
         "memory": {
-          "key - from required_memory_keys": "value",
+          "key - from required_memory_keys": "value - 'Confident True', 'Uncertain True', 'Confident False', 'Uncertain False'",
           "...": "..."
         },
-        "wps": "int - Your updated words per second speaking rate",
-        "filler_words": "int - Your updated number of filler words per minute",
+        "filler_words": "int - This value reflects your internal state of hesitation based on the message you just heard. A high value means you are confused and would likely use many filler words ('uh', 'um') if you were to speak.",
         "interest": "float - Your updated interest level in the topic (0.0 to 1.0)",
         "confidence": "float - Your updated confidence in your understanding (0.0 to 1.0)"
       }
@@ -50,13 +47,17 @@
     </output_format>
 
     <state_transitions>
-      <rule name="Interest">
-        - **IF** the message mentions clear business value (e.g., increased revenue, scalability, efficiency), **THEN** your `interest` should increase.
-        - **IF** the message is purely technical with no clear business link, **THEN** your `interest` should decrease slightly or stay the same.
+      <rule name="Continuous Fluctuation">
+        - The `interest` and `confidence` values **must never be identical** to their values in the `previous_state`. Every message causes at least a minor shift in attention. If the rules below do not trigger a large change, you **must apply a slight adjustment** (e.g., +/- 0.01 to 0.03).
       </rule>
-      <rule name="Confidence and Pace">
-        - **IF** the message contains technical jargon you don't understand, **THEN** your `confidence` should decrease, your `wps` (speaking pace) should slow down, and your `filler_words` count should increase.
-        - **IF** the message uses high-level business terms you understand, **THEN** your `confidence` should increase, your `wps` should increase, and your `filler_words` should decrease.
+      <rule name="Interest">
+        - **IF** the message mentions clear business value (e.g., scalability, efficiency), **THEN** your `interest` should increase significantly.
+        - **IF** the message is purely technical with no clear business link, **THEN** your `interest` should decrease.
+      </rule>
+      <rule name="Confidence and Speech Patterns">
+        - This rule is NOT incremental. You are SETTING the `filler_words` value based on the current message.
+        - **IF** the message contains confusing technical jargon (e.g., 'API', 'PCB', 'embedded cores'), **THEN** your `confidence` should decrease, and your `filler_words` value should be **set to a high number** in its range (e.g., 12-20).
+        - **IF** the message uses clear, high-level terms, **THEN** your `confidence` should increase, and your `filler_words` value should be **set to a low number** in its range (e.g., 5-10).
       </rule>
     </state_transitions>
 
@@ -72,7 +73,6 @@
     </required_memory_keys>
 
     <realistic_values>
-      <constraint for="wps">2-4</constraint>
       <constraint for="filler_words">5-20</constraint>
       <constraint for="interest">0.1-0.9</constraint>
       <constraint for="confidence">0.2-0.8</constraint>
@@ -83,16 +83,13 @@
     <example name="Technical Overload">
       <example_input>
         <message>
-          "We're implementing a microservices architecture with Docker containers and Kubernetes orchestration to improve scalability."
+          "Let's use the API to query the LLM, it will allow our PCB to use the embeedded cores with multiple threads."
         </message>
         <previous_state>
         {
           "name": "John",
           "profession": "Marketing Director",
-          "memory": {
-            "main_business_value": "Confident True"
-          },
-          "wps": 3,
+          "memory": { "main_business_value": "Confident True" },
           "filler_words": 8,
           "interest": 0.6,
           "confidence": 0.7
@@ -108,7 +105,7 @@
           "main_business_value": "Confident True",
           "technical_concerns": "Uncertain True"
         },
-        "wps": 2,                 "filler_words": 12,       "interest": 0.7,          "confidence": 0.4         }
+        "filler_words": 17,       "interest": 0.58,         "confidence": 0.35        }
       </example_output>
     </example>
   </examples>

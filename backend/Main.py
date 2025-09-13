@@ -17,7 +17,6 @@ class ProfileState(BaseModel):
     profession: str = Field(..., description="Professional role/background")
     memory: Dict[str, str] = Field(..., description="Updated knowledge, assumptions, or insights")
     understanding_threshold: float = Field(..., ge=0, le=1, description="Minimum comprehension needed to stay engaged")
-    wps: int = Field(..., ge=1, le=10, description="Words per second speaking rate")
     filler_words: int = Field(..., ge=0, le=50, description="Number of filler words per minute when speaking")
     interest: float = Field(..., ge=0, le=1, description="Current interest level in the topic")
     confidence: float = Field(..., ge=0, le=1, description="Confidence in understanding of current discussion")
@@ -86,29 +85,41 @@ def process_data(data):
     print("Processing data:")
     
     # Parse data into variables
-    profile_name, phrase_with_timestamp = parse_data(data)
+    profile_name, message, timestamp = parse_data(data)
     
     # Process main user's profile
-    profile = profiles[0]  # Assuming first profile is the main user
+    profile = profiles[0] # Assuming first profile is the main user
     if profile is not None and prompt_template:
-        # Get current state
+        # Calculate WPS if we have previous data
+        if profile.last_timestamp is not None and profile.last_message is not None:
+            time_diff = timestamp - profile.last_timestamp
+            if time_diff > 0:
+                words_current = len(message.split())
+                words_per_second = words_current / time_diff
+                profile.wps = round(words_per_second)
+                print(f"Calculated WPS: {profile.wps}")
+
+        # Store current message and timestamp for next calculation
+        profile.last_message = message
+        profile.last_timestamp = timestamp
+
+        # Get current state for LLM
         previous_state = {
             "name": profile_name,
             "profession": profile.profession,
             "memory": profile.memory,
             "understanding_threshold": profile.understanding_threshold,
-            "wps": profile.wps,
             "filler_words": profile.filler_words,
             "interest": profile.interest,
             "confidence": profile.confidence
         }
         
         # Format prompt with dynamic inputs
-        formatted_prompt = prompt_template.replace("{{frontend_message}}", str(phrase_with_timestamp))
+        formatted_prompt = prompt_template.replace("{{frontend_message}}", str(message))
         formatted_prompt = formatted_prompt.replace("{{previous_state_json}}", json.dumps(previous_state, indent=2))
         
         try:
-            # Use instructor for structured response
+            # Use instructor for structured response (without WPS)
             updated_state = llm.messages.create(
                 model="claude-3-5-haiku-20241022",
                 max_tokens=1000,
@@ -116,16 +127,15 @@ def process_data(data):
                 response_model=ProfileState
             )
             
-            # Update profile with new state
+            # Update profile with new state (keeping our calculated WPS)
             profile.profession = updated_state.profession
             profile.memory = updated_state.memory
             profile.understanding_threshold = updated_state.understanding_threshold
-            profile.wps = updated_state.wps
             profile.filler_words = updated_state.filler_words
             profile.interest = updated_state.interest
             profile.confidence = updated_state.confidence
             
-            print(f"Updated user profile state:", updated_state.model_dump())
+            print(f"Updated user profile state:", profile)
             
         except Exception as e:
             print(f"Error processing user profile: {e}")
@@ -134,10 +144,10 @@ def process_data(data):
 
 # Parses incoming data
 def parse_data(data):
-    # TODO: Parse data please
-    profile_name = None
-    phrase_with_timestamp = None
-    return profile_name, phrase_with_timestamp
+    profile_name = data.get("profile_name")
+    message = data.get("message", "")
+    timestamp = data.get("timestamp", 0)
+    return profile_name, message, timestamp
 
 # Endpoint to receive data
 @app.post("/process")
